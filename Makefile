@@ -1,12 +1,21 @@
 CC := gcc
-CFLAGS := -w -Wall
-OBJ=$(wildcard *.o)
+CFLAGS := -Wall -Werror -Iinclude
+LDFLAGS :=
 
-SRC := main.c
-TARGET := main
 
-all:
-	$(CC) $(CFLAGS) -o $(TARGET) $(SRC)
+OBJECTS := main.o
+EXECUTABLE := main
+
+all: $(OBJECTS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $(EXECUTABLE) $(OBJECTS)
+
+%.o: src/%.c
+	$(CC) $(CFLAGS) -c $^
+
+check:
+	scripts/checkpatch.pl --no-tree -f src/*
 
 clean:
-	rm -f $(TARGET) $(OBJ)
+	rm -f $(EXECUTABLE)
+	rm -f $(OBJECTS)
+.PHONY: clean
