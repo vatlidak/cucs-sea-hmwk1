@@ -12,81 +12,21 @@
 #include <stdlib.h>
 
 #include "parser.h"
+#include "fops.h"
 
 
-#define READ_WRITE 1
-#define OK 0
-#define NOT_OK -1
-
-
-struct acl {
-	int permissions;
-	char user[USERNAME_LEN];
-	char group[GROUPNAME_LEN];
-	struct acl *next;
-};
-
-
-struct file {
-	struct acl  *acls;
-	char file_name[FILENAME_LEN];
-	struct file *next;
-};
-
-
-
+#ifdef _DEBUG
 void ls(struct file *fs)
 {
 	while (fs != NULL) {
-		printf("-%s\n", fs->file_name);
+		while(fs->acls != NULL) {
+			 printf("%s: %s.%s %d\n", fs->file_name, fs->acls->user, fs->acls->group, fs->acls->permissions);
+			 fs->acls =fs->acls->next;
+		}
 		fs = fs->next;
 	}
 }
-
-struct file *get_file_handle(struct file *fs, char *file_name)
-{
-	while (fs != NULL) {
-		if (!strcmp(fs->file_name, file_name))
-			break;
-		fs = fs->next;
-	}
-
-	return fs;
-}
-
-
-/* insert at start */
-struct file *create_file(struct file **fs, char *file_name, char *user, char *group)
-{
-	struct file *f;
-
-	if ((f = calloc(1, sizeof(struct file))) == NULL) {
-		perror("calloc");
-		return NULL;
-	}
-	if ((f->acls = calloc(1, sizeof(struct acl))) == NULL) {
-	    perror("calloc");
-	    return NULL;
-	}
-	f->acls->permissions = READ_WRITE;
-	strcpy(f->acls->user, user);
-	strcpy(f->acls->group, group);
-
-	f->next = *fs;
-	*fs = f;
-
-	printf("Creating file:");
-	printf("<%s>.<%s>.<%s>\n", file_name, user, group);
-
-	return f;
-}
-
-void *update_acl(struct file *file_handle, char *file_name, char *user, char *group)
-{
-	printf("Updating file:");
-	printf("<%s>.<%s>.<%s>\n", file_name, user, group);
-	return NULL;
-}
+#endif
 
 
 /*
@@ -94,7 +34,7 @@ void *update_acl(struct file *file_handle, char *file_name, char *user, char *gr
  *
  * @input_stream: the input to read the file from
  */
-static int parse_user_definition(struct file **fs, FILE *input_stream)
+static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 {
 	int len;
 	char *line;
@@ -122,13 +62,11 @@ static int parse_user_definition(struct file **fs, FILE *input_stream)
 			continue;
 		}
 	
-	//	printf("<%s>.<%s>\n", user, group);
-		
 		if (get_file_name(line, file_name)) {
-			file_handle = create_file(fs, file_name, user, group);
+			file_handle = fops_create(fs, file_name, user, group);
 		}
 		else
-			update_acl(file_handle, file_name, user, group);
+			fops_update(file_handle, user, group, READ_WRITE);
 		
 		/*
 		 * Here we create the ACLS
@@ -152,7 +90,7 @@ end_of_section:
  *
  * @input_stream: the input to read the file from
  */
-static int parse_file_operation(FILE *input_stream)
+static int parse_file_operation_portion(FILE *input_stream)
 {
 	int len;
 	char *line;
@@ -182,12 +120,17 @@ int main(int argc, char **argv)
 {
 	struct file *FS;
 
-	FS = NULL;
+	FS = fops_mount(&FS);
 
-	parse_user_definition(&FS, stdin);
+	parse_user_definition_portion(&FS, stdin);
+#ifdef _DEBUG
+	printf("\n");
+	printf("-----------------------------\n");
+	printf("\n");
 	ls(FS);
+	printf("\n");
+	printf("---%s\n", fops_get_handle(FS, "/home/bollinger")->file_name);
+#endif
 	//parse_file_operation(stdin);
 	return 0;
 }
-
-

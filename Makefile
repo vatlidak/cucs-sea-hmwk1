@@ -1,9 +1,11 @@
 CC := gcc
 CFLAGS := -Wall -Iinclude
 LDFLAGS :=
+ifeq ($(DEBUG),1)
+CFLAGS += -D_DEBUG
+endif
 
-
-OBJECTS := main.o parser.o
+OBJECTS := main.o parser.o fops.o
 EXECUTABLE := main
 
 all: $(OBJECTS)
@@ -18,4 +20,3 @@ check:
 clean:
 	rm -f $(EXECUTABLE)
 	rm -f $(OBJECTS)
-.PHONY: clean
