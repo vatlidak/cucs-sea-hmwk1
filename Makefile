@@ -1,9 +1,9 @@
 CC := gcc
-CFLAGS := -Wall -Werror -Iinclude
+CFLAGS := -Wall -Iinclude
 LDFLAGS :=
 
 
-OBJECTS := main.o
+OBJECTS := main.o parser.o
 EXECUTABLE := main
 
 all: $(OBJECTS)
