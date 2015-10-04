@@ -73,39 +73,103 @@ int get_filename(const char *line, char *filename)
 	for (len = 0; len < strlen(line); len++)
 		if (line[len] == ' ')
 			break;
+
 	//printf("@@<%c>", line[len]);
 	if (line[len] == '\0')
 		return 0;
 
 	//printf("line:<%s>\n", line);
 	line = line + len + 1;
-	//printf("line:<%s>\n", line);
+	//printf("line:<C:%c>\n", *line);
+
+	/* strip possible spaces */
+	while (*line == ' ')
+		line++;
 
 	/* remember, line contains \n  which doesn't count*/
-	//if ((
 	len = strlen(line);
-	//) != 0) {
 	strncpy(filename, line, len-1);
 	filename[len-1] = '\0';
-	//}
 	return len - 1;
 }
 
+/*
+ * @tokenize - Parse line into args separated by delimiter(s)
+ *
+ * @line - The line to be parsed
+ * @args - The args retrieved by the line
+ * @delim - A set of delimiters
+ *
+ * An array, whose starting address is pointed by "*args",
+ * is allocated to store any args found in line. This array
+ * should by freed by the calling method.
+ */
+int tokenize(char *line, char ***args, char *delim)
+{
+	int i;
+	int ntok;
+	char *copy;
+
+	/*
+	 * strtok libc function modifies the initial buffer it is
+	 * requested to tokenize. Thus, we make a copy of the
+	 * initial buffer and use it to count number of args
+	 * and in the next iteration then retrieve the args.
+	 */
+	if (line == NULL)
+		return -1;
+	copy = calloc(strlen(line) + 1, sizeof(char));
+	if (copy == NULL) {
+		perror("calloc");
+		return -1;
+	}
+	strcpy(copy, line);
+	if (strtok(copy, delim) == NULL)
+		return -1;
+	ntok = 1;
+	while (strtok(NULL, delim) != NULL)
+		ntok++;
+	free(copy);
+	copy = calloc(strlen(line) + 1, sizeof(char));
+	if (copy == NULL) {
+		perror("caloc");
+		return -1;
+	}
+	strcpy(copy, line);
+	*args = calloc(ntok + 1, sizeof(char *));
+	if (*args == NULL) {
+		perror("calloc");
+		return -1;
+	}
+	**args = strtok(copy, delim);
+	for (i = 1; i < ntok; i++)
+		*(*args + i) = strtok(NULL, delim);
+	*(*args + i) = NULL;
+
+	return 0;
+}
+/*
 int get_filename_components(const char *filename, char *component, int start)
 {
 	int len;
 
-	for (len = 0; start + len < strlen(filename)
-	     && filename[start + len] != '\n'; len++) {
+	component[0] = '\0';
+
+	if (filename[start] != '/')
+		return -1;
+
+	//printf("here\n");
+	for (len = 0; len < strlen(filename); len++)
 		if (filename[start + len] == '/' && len != 0)
 			break;
-	}
-	if (len == FILENAME_LEN)
-		return -1;
+	
+	//printf("here1\n");
+	//if (len == strlen(filename))
+	//	return -1;
 
 	strncpy(component, filename, start + len);
 	component[start + len] = '\0';
 		
-	printf("start:%d,len:%d,component:%s\n", start, len, component);
+	//printf("start:%d,len:%d,component:%s\n", start, len, component);
 	return len;
-}
+}*/
