@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include "parser.h"
 
+
 int get_user(const char *line, char *user)
 {
 	int len;
@@ -53,7 +54,7 @@ int get_group(const char *line, char *group)
 	return len;
 }
 
-int get_file_name(const char *line, char *file_name)
+int get_filename(const char *line, char *filename)
 {
 	int len;
 
@@ -69,13 +70,31 @@ int get_file_name(const char *line, char *file_name)
 	line = line + len;
 	
 	/* parse file name field */
-	for (len = 0; len < LINE_LEN + 1 && line[len] != '\n'; len++)
+	for (len = 0; len < FILENAME_LEN + 1 && line[len] != '\n'; len++)
 		;
-	if (len == LINE_LEN + 1)
+	if (len == FILENAME_LEN + 1)
 		return -1;
 
-	strncpy(file_name, line, len);
-	file_name[len] = '\0';
+	strncpy(filename, line, len);
+	filename[len] = '\0';
 
+	return len;
+}
+
+int get_filename_components(const char *filename, char *component, int start)
+{
+	int len;
+
+	printf("%s\n", filename);
+	for (len = 0; len < COMPONENT_LEN && start + len < strlen(filename)
+	     && filename[start + len] != '\n'; len++) {
+		printf("%d\n", len);
+		if (filename[start + len] == '/' && len != 0)
+			break;
+	}
+
+	strncpy(component, filename, start + len);
+	component[start + len] = '\0';
+		
 	return len;
 }

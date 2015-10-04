@@ -12,7 +12,7 @@
 #include <stdlib.h>
 
 #include "parser.h"
-#include "fops.h"
+#include "env_ops.h"
 
 
 #ifdef _DEBUG
@@ -20,11 +20,13 @@ void ls(struct file *fs)
 {
 	while (fs != NULL) {
 		while(fs->acls != NULL) {
-			 printf("%s: %s.%s %d\n", fs->file_name, fs->acls->user, fs->acls->group, fs->acls->permissions);
+			 printf("%s: %s.%s %d\n", fs->filename, fs->acls->user,
+				fs->acls->group, fs->acls->permissions);
 			 fs->acls =fs->acls->next;
 		}
 		fs = fs->next;
 	}
+	printf("-------\n");
 }
 #endif
 
@@ -40,9 +42,8 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 	char *line;
 	char user[USERNAME_LEN + 1];
 	char group[GROUPNAME_LEN + 1];
-	char file_name[FILENAME_LEN + 1];
+	char filename[FILENAME_LEN + 1];
 
-	void *file_handle;
 	size_t n = 12345;
 
 
@@ -61,18 +62,25 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 			fprintf(stderr, "E: Malformed line: %s", line);
 			continue;
 		}
-	
-		if (get_file_name(line, file_name)) {
-			file_handle = fops_create(fs, file_name, user, group);
+		int start = 0;
+		char abs_path[FILENAME_LEN + 1];
+
+		if (get_filename(line, filename)) {
+			while ((len = get_filename_components(filename,
+							      abs_path,
+							      start)) > 0)
+			{
+				env_ops_create(fs, abs_path, user, group);
+				start += len;
+			}
 		}
-		else
-			fops_update(file_handle, user, group, READ_WRITE);
-		
+		else {
+			env_ops_update(env_ops_get_handle(*fs, abs_path), user, group, READ_WRITE);
+		}
 		/*
 		 * Here we create the ACLS
 		 * For each file, add the users and groups
 		 */
-
 		free(line);
 	}
 
@@ -90,7 +98,7 @@ end_of_section:
  *
  * @input_stream: the input to read the file from
  */
-static int parse_file_operation_portion(FILE *input_stream)
+/*static int parse_file_operation_portion(FILE *input_stream)
 {
 	int len;
 	char *line;
@@ -115,21 +123,19 @@ end_of_section:
 
 	return 0;
 }
+*/
 
 int main(int argc, char **argv)
 {
 	struct file *FS;
 
-	FS = fops_mount(&FS);
-
+	FS = env_ops_mount(&FS);
+#ifdef _DEBUG
+	ls(FS);
+#endif
 	parse_user_definition_portion(&FS, stdin);
 #ifdef _DEBUG
-	printf("\n");
-	printf("-----------------------------\n");
-	printf("\n");
 	ls(FS);
-	printf("\n");
-	printf("---%s\n", fops_get_handle(FS, "/home/bollinger")->file_name);
 #endif
 	//parse_file_operation(stdin);
 	return 0;

@@ -1,5 +1,5 @@
 /* TODO: check this again */
-#define FILENAME_LEN 256
+//#define FILENAME_LEN 256
 #define USERNAME_LEN 16
 #define GROUPNAME_LEN 16
 #define COMPONENT_LEN 16
@@ -21,11 +21,11 @@ struct acl {
 
 struct file {
 	struct acl  *acls;
-	char file_name[FILENAME_LEN];
+	char filename[FILENAME_LEN];
 	struct file *next;
 };
 
-struct file *fops_mount(struct file **fs);
-struct file *fops_get_handle(struct file *fs, char *file_name);
-struct file *fops_create(struct file **fs, char *file_name, char *user, char *group);
-void *fops_update(struct file *file_handle, char *user, char *group, int permissions);
+struct file *env_ops_mount(struct file **fs);
+struct file *env_ops_get_handle(struct file *fs, char *filename);
+struct file *env_ops_create(struct file **fs, char *filename, char *user, char *group);
+struct file *env_ops_update(struct file *file_handle, char *user, char *group, int permissions);
