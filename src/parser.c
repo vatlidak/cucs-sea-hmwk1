@@ -17,84 +17,95 @@ int get_user(const char *line, char *user)
 {
 	int len;
 
+	user[0] = '\0';
 	/* parse user name field */
-	for (len = 0; len < USERNAME_LEN + 1 && line[len] != '.'; len++)
+	for (len = 0; len < strlen(line) && line[len] != '.'; len++)
 		;
-	if (len == USERNAME_LEN + 1)
-		return -1;
+	if (line[len] != '.')
+		goto error;
 
 	strncpy(user, line, len);
 	user[len] = '\0';
 
 	return len;
+error:
+	return -1;
 }
 
 int get_group(const char *line, char *group)
 {
 	int len;
 
+	group[0]='\0';
 	/* move past user name field */
-	for (len = 0; len < USERNAME_LEN + 1 && line[len] != '.'; len++)
+	for (len = 0; len < strlen(line) && line[len] != '.'; len++)
 		;
-	if (len == USERNAME_LEN + 1)
-		return -1;
+	if (line[len] != '.')
+		goto error;
 	line = line + len + 1;
 	
 	/* parse group name field */
-	for (len = 0; len < GROUPNAME_LEN + 1 && line[len] != ' '
+	for (len = 0; len < strlen(line) && line[len] != ' '
 	     && line[len] != '\n'; len++)
-		strncpy(group, line, len);
-	
-	if (len == GROUPNAME_LEN + 1)
-		return -1;
+		;
+
+	if (!len)
+		goto error;
+
 
 	strncpy(group, line, len);
 	group[len] = '\0';
 
 	return len;
+error:
+	return -1;
 }
 
 int get_filename(const char *line, char *filename)
 {
 	int len;
 
+	filename[0] = '\0';
 	/*
 	 * move past user name and group name field and return if
 	 * file name starting point not found
 	 */
-	for (len = 0; len < LINE_LEN + 1 &&
-	     line[len] != '/' && line[len] != '\n'; len++)
-		;
-	if (len == LINE_LEN + 1 || line[len + 1] == '\n')
-		return -1;
-	line = line + len;
-	
-	/* parse file name field */
-	for (len = 0; len < FILENAME_LEN + 1 && line[len] != '\n'; len++)
-		;
-	if (len == FILENAME_LEN + 1)
-		return -1;
+	for (len = 0; len < strlen(line); len++)
+		if (line[len] == ' ')
+			break;
+	//printf("@@<%c>", line[len]);
+	if (line[len] == '\0')
+		return 0;
 
-	strncpy(filename, line, len);
-	filename[len] = '\0';
+	//printf("line:<%s>\n", line);
+	line = line + len + 1;
+	//printf("line:<%s>\n", line);
 
-	return len;
+	/* remember, line contains \n  which doesn't count*/
+	//if ((
+	len = strlen(line);
+	//) != 0) {
+	strncpy(filename, line, len-1);
+	filename[len-1] = '\0';
+	//}
+	return len - 1;
 }
 
 int get_filename_components(const char *filename, char *component, int start)
 {
 	int len;
 
-	printf("%s\n", filename);
-	for (len = 0; len < COMPONENT_LEN && start + len < strlen(filename)
+	for (len = 0; start + len < strlen(filename)
 	     && filename[start + len] != '\n'; len++) {
-		printf("%d\n", len);
 		if (filename[start + len] == '/' && len != 0)
 			break;
 	}
+	if (len == FILENAME_LEN)
+		return -1;
 
 	strncpy(component, filename, start + len);
 	component[start + len] = '\0';
 		
+	printf("start:%d,len:%d,component:%s\n", start, len, component);
 	return len;
 }
