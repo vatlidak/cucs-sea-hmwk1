@@ -148,28 +148,3 @@ int tokenize(char *line, char ***args, char *delim)
 
 	return 0;
 }
-/*
-int get_filename_components(const char *filename, char *component, int start)
-{
-	int len;
-
-	component[0] = '\0';
-
-	if (filename[start] != '/')
-		return -1;
-
-	//printf("here\n");
-	for (len = 0; len < strlen(filename); len++)
-		if (filename[start + len] == '/' && len != 0)
-			break;
-	
-	//printf("here1\n");
-	//if (len == strlen(filename))
-	//	return -1;
-
-	strncpy(component, filename, start + len);
-	component[start + len] = '\0';
-		
-	//printf("start:%d,len:%d,component:%s\n", start, len, component);
-	return len;
-}*/

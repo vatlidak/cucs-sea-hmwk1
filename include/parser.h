@@ -8,4 +8,5 @@
 int get_user(const char *line, char *user);
 int get_group(const char *line, char *group);
 int get_filename(const char *line, char *filename);
-int get_filename_components(const char *filename, char *component, int start);
+
+int tokenize(char *line, char ***args, char *delim);

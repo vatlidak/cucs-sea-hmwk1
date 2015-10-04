@@ -12,9 +12,9 @@
 #include <stdlib.h>
 
 #include "parser.h"
-#include "env_ops.h"
+#include "f_ops.h"
 
-struct file *env_ops_get_handle(struct file *fs, char *filename)
+static struct file *f_ops_get_handle(struct file *fs, char *filename)
 {
 	while (fs != NULL) {
 		if (!strcmp(fs->filename, filename))
@@ -26,20 +26,40 @@ struct file *env_ops_get_handle(struct file *fs, char *filename)
 }
 
 
+struct file *f_ops_mount(struct file **fs)
+{
+	struct file *file_handle;
+
+	*fs = NULL;
+
+	file_handle = f_ops_create(fs, "/home", "*", "*");
+	if (!file_handle)
+		return NULL;
+
+	f_ops_update(*fs, "/home", "*", "*", READ);
+
+	f_ops_create(fs, "/tmp", "*", "*");
+#ifdef _DEBUG
+	printf("filesystem mounted\n");
+#endif
+	return *fs;
+}
+
+
 /*
- * env_ops_create: create file in filesystem
+ * f_ops_create: create file in filesystem
  *
  * Note: creates also any components that are not in the filesystem already
  */
-struct file *env_ops_create(struct file **fs, char *filename,
+struct file *f_ops_create(struct file **fs, char *filename,
 			    char *user, char *group)
 {
 	struct file *f;
 
-	if (*fs && !strcmp(filename, "/home"))
+	if (f_ops_acl_check(*fs, filename, user, group, WRITE))
 		return NULL;
-		
-	if (env_ops_get_handle(*fs, filename)) {
+
+	if (f_ops_get_handle(*fs, filename)) {
 		fprintf(stderr, "File: \"%s\" exists\n", filename);
 		return NULL;
 	}
@@ -49,7 +69,6 @@ struct file *env_ops_create(struct file **fs, char *filename,
 		return NULL;
 	}
 	strcpy(f->filename, filename);
-	
 	if ((f->acls = calloc(1, sizeof(struct acl))) == NULL) {
 	    perror("calloc");
 	    return NULL;
@@ -63,32 +82,24 @@ struct file *env_ops_create(struct file **fs, char *filename,
 	f->next = *fs;
 	*fs = f;
 
+//	printf("Created:<%s><%s>:<%s>\n", filename, user, group);
 	return f;
 }
 
-struct file *env_ops_mount(struct file **fs)
-{
-	struct file *f;
-
-	*fs = NULL;
-
-	f = env_ops_create(fs, "/home", "*", "*");
-	env_ops_update(f, "*", "*", READ);
-
-	env_ops_create(fs, "/tmp", "*", "*");
-#ifdef _DEBUG
-	printf("filesystem mounted\n");
-#endif
-	return *fs;
-}
-
-
-struct file *env_ops_update(struct file *file_handle, char *user,
-		  char *group, int permissions)
+struct file *f_ops_update(struct file *fs, char *filename, char *user,
+			    char *group, int permissions)
 {
 	struct acl *acl;
 
-	/* if file has ACLs for current group and user, update those */
+	struct file *file_handle; 
+
+	if (f_ops_acl_check(fs, filename, user, group, WRITE))
+		return NULL;
+
+	file_handle = f_ops_get_handle(fs, filename);
+	if (!file_handle)
+		return NULL;
+
 	acl = file_handle->acls;
 	while ( acl != NULL) {
 		if (!strcmp(acl->user, user) && !strcmp(acl->group, group))
@@ -111,5 +122,16 @@ struct file *env_ops_update(struct file *file_handle, char *user,
 	acl->next = file_handle->acls;
 	file_handle->acls = acl;
 
+//	printf("Updated:<%s><%s>:<%s>\n", file_handle->filename, user, group);
 	return file_handle;
+}
+
+static int  do_acl_check(struct file *fs, char *filename, char *user,
+			 char *group, int permissions){
+	return 0;
+}
+
+int f_ops_acl_check(struct file *fs, char *filename, char *user,
+		    char *group, int permissions){
+	return do_acl_check(fs, filename, user, group, permissions);
 }

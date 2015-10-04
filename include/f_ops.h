@@ -25,7 +25,7 @@ struct file {
 	struct file *next;
 };
 
-struct file *env_ops_mount(struct file **fs);
-struct file *env_ops_get_handle(struct file *fs, char *filename);
-struct file *env_ops_create(struct file **fs, char *filename, char *user, char *group);
-struct file *env_ops_update(struct file *file_handle, char *user, char *group, int permissions);
+struct file *f_ops_mount(struct file **fs);
+struct file *f_ops_create(struct file **fs, char *filename, char *user, char *group);
+struct file *f_ops_update(struct file *fs, char *filename, char *user, char *group, int permissions);
+int f_ops_acl_check(struct file *fs, char *filename, char *user, char *group, int permissions);

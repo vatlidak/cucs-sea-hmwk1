@@ -12,7 +12,7 @@
 #include <stdlib.h>
 
 #include "parser.h"
-#include "env_ops.h"
+#include "f_ops.h"
 
 
 #ifdef _DEBUG
@@ -20,7 +20,7 @@ void ls(struct file *fs)
 {
 	while (fs != NULL) {
 		while(fs->acls != NULL) {
-			 printf("%s: %s.%s %d\n", fs->filename, fs->acls->user,
+			 printf("%s:%s.%s %d\n", fs->filename, fs->acls->user,
 				fs->acls->group, fs->acls->permissions);
 			 fs->acls =fs->acls->next;
 		}
@@ -51,7 +51,7 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 		/* line set NULL: getline allocates appropriate buffer */
 		line = NULL;
 		if ((len = getline(&line, &n, input_stream)) == -1)
-			break;
+			goto malformed_line;
 
 		if (len == 2 && strncmp(line, ".\n", 2) == 0)
 			goto end_of_section;
@@ -71,40 +71,44 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 		if (len < 0 || len > FILENAME_LEN)
 			goto malformed_line;
 		/*
-		 * At this point it is quaranteed that we have a null
-		 * terminated line (including a newline character).
+		 * At this point it is quaranteed that we have
+		 * proper user, group, and filename (components missing)
 		 */
 		char abs_path[FILENAME_LEN + 1];
-		printf("<%s>.<%s>:<%s>\n", user, group, filename);
+//		printf("<%s>.<%s>:<%s>\n", user, group, filename);
 		if (len) {
 			int i=0;
 			char **components;
+			
 			tokenize(filename, &components, "/");
+			if (strcmp(components[i], "home"))
+			    goto malformed_line;
+
 			abs_path[0] = '\0';
-			while ( components[i] != NULL) {
+			while (components[++i] != NULL) {
+				sprintf(abs_path, "%s/%s",
+					abs_path, components[i]);
 				if (strlen(components[i]) > COMPONENT_LEN)
 					break;
-				sprintf(abs_path, "%s/%s",abs_path, components[i]);
-				printf("Component:<%s>\n", abs_path);
-				i++;
-				//env_ops_create(fs, abs_path, user, group);
+				//printf("Component:<%s>\n", abs_path);
+				f_ops_create(fs, abs_path, user, group);
 			}
-			printf("--\n");
 		}
-	//	else {
-	//		env_ops_update(env_ops_get_handle(*fs, abs_path),
-	//			       user, group, READ_WRITE);
-	//	}
-
-		free(line);
-		continue;
-
-malformed_line:
-		fprintf(stderr, "E: Malformed line: %s", line);
+		else {
+			f_ops_update(*fs, abs_path, user, group,
+				       READ_WRITE);
+		}
+//		printf("--\n");
 		free(line);
 	}
 
+malformed_line:
+	fprintf(stderr, "\n");
+	fprintf(stderr, "E: Malformed line: %s", line);
 	fprintf(stderr, "E: Malformed user definition section\n");
+	fprintf(stderr, "E: Setting environment stopped here... :-(\n");
+	fprintf(stderr, "\n");
+	free(line);
 	return -1;
 
 end_of_section:
@@ -149,7 +153,7 @@ int main(int argc, char **argv)
 {
 	struct file *FS;
 
-	FS = env_ops_mount(&FS);
+	FS = f_ops_mount(&FS);
 #ifdef _DEBUG
 	ls(FS);
 #endif

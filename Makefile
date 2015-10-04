@@ -5,7 +5,7 @@ ifeq ($(DEBUG),1)
 CFLAGS += -D_DEBUG
 endif
 
-OBJECTS := main.o parser.o env_ops.o
+OBJECTS := main.o parser.o f_ops.o
 EXECUTABLE := main
 
 all: $(OBJECTS)
