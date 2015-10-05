@@ -13,84 +13,123 @@
 #include "parser.h"
 
 
-int get_user(const char *line, char *user)
+int get_user(const char *line, char **user)
 {
-	int len;
+	char *token;
 
-	user[0] = '\0';
-	/* parse user name field */
-	for (len = 0; len < strlen(line) && line[len] != '.'; len++)
-		;
-	if (line[len] != '.')
-		goto error;
+	token = strtok(line, ". \n");
+	if (token == NULL)
+		return -1;
 
-	strncpy(user, line, len);
-	user[len] = '\0';
+	*user = token;
 
-	return len;
-error:
-	return -1;
+	return strlen(user);
+//	user[0] = '\0';
+//	/* parse user name field */
+//	for (len = 0; len < strlen(line) && line[len] != '.'; len++)
+//		;
+//	if (line[len] != '.')
+//		goto error;
+//
+//	if ((*user = calloc(len + 1, sizeof(char)) == NULL)) {
+//		perror("calloc");
+//		goto error;
+//	}
+//	strncpy(*user, line, len);
+//	*user[len] = '\0';
+//
+//	return len;
+//error:
+//	return -1;
 }
 
-int get_group(const char *line, char *group)
+int get_group(const char *line, char **group)
 {
-	int len;
+	char *token;
 
-	group[0]='\0';
-	/* move past user name field */
-	for (len = 0; len < strlen(line) && line[len] != '.'; len++)
-		;
-	if (line[len] != '.')
-		goto error;
-	line = line + len + 1;
-	
-	/* parse group name field */
-	for (len = 0; len < strlen(line) && line[len] != ' '
-	     && line[len] != '\n'; len++)
-		;
+	token = strtok(NULL, ". \n");
+	if (token == NULL)
+		return -1;
 
-	if (!len)
-		goto error;
+	*group = token;
 
-
-	strncpy(group, line, len);
-	group[len] = '\0';
-
-	return len;
-error:
-	return -1;
+	return strlen(group);
+//	group[0]='\0';
+//	/* move past user name field */
+//	for (len = 0; len < strlen(line) && line[len] != '.'; len++)
+//		;
+//	if (line[len] != '.')
+//		goto error;
+//	line = line + len + 1;
+//	
+//	/* parse group name field */
+//	for (len = 0; len < strlen(line) && line[len] != ' '
+//	     && line[len] != '\n'; len++)
+//		;
+//
+//	if (!len)
+//		goto error;
+//
+//	if ((*group = calloc(len + 1, sizeof(char)) == NULL)) {
+//		perror("calloc");
+//		goto error;
+//	}
+//
+//	strncpy(*group, line, len);
+//	*group[len] = '\0';
+//
+//	return len;
+//error:
+//	return -1;
 }
 
-int get_filename(const char *line, char *filename)
+int get_filename(const char *line, char **filename)
 {
-	int len;
+	char *token;
 
-	filename[0] = '\0';
-	/*
-	 * move past user name and group name field and return if
-	 * file name starting point not found
-	 */
-	for (len = 0; len < strlen(line); len++)
-		if (line[len] == ' ')
-			break;
+	token = strtok(NULL, ". \n");
+	if (token == NULL)
+		return -1;
 
-	//printf("@@<%c>", line[len]);
-	if (line[len] == '\0')
-		return 0;
+	*filename = token;
 
-	//printf("line:<%s>\n", line);
-	line = line + len + 1;
-	//printf("line:<C:%c>\n", *line);
+	return strlen(filename);
 
-	/* strip possible spaces */
-	while (*line == ' ')
-		line++;
-
-	/* remember, line contains \n  which doesn't count*/
-	len = strlen(line);
-	strncpy(filename, line, len-1);
-	filename[len-1] = '\0';
-	return len - 1;
+//	filename[0] = '\0';
+//	/*
+//	 * move past user name and group name field and return if
+//	 * file name starting point not found
+//	 */
+//	for (len = 0; len < strlen(line); len++)
+//		if (line[len] == ' ')
+//			break;
+//
+//	//printf("@@<%c>", line[len]);
+//	if (line[len] == '\0')
+//		return 0;
+//
+//	//printf("line:<%s>\n", line);
+//	line = line + len + 1;
+//	//printf("line:<C:%c>\n", *line);
+//
+//	/* strip possible spaces */
+//	while (*line == ' ')
+//		line++;
+//
+//	/* remember, line contains \n  which doesn't count*/
+//	len = strlen(line);
+//
+//	if ((*filename = calloc(len, sizeof(char)) == NULL)) {
+//		perror("calloc");
+//		goto error;
+//	}
+//
+//	strncpy(*filename, line, len-1);
+//	*filename[len-1] = '\0';
+//	return len - 1;
+//
+//error:
+//	return -1;
 }
 
 /*
