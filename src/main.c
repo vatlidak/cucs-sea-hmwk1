@@ -15,24 +15,6 @@
 #include "f_ops.h"
 
 
-#define DELIMITERS ". \n"
-
-#ifdef _DEBUG
-void ls(struct file *fs)
-{
-	while (fs != NULL) {
-		while(fs->acls != NULL) {
-			 printf("%s:%s.%s %d\n", fs->filename, fs->acls->user,
-				fs->acls->group, fs->acls->permissions);
-			 fs->acls =fs->acls->next;
-		}
-		fs = fs->next;
-	}
-	printf("-------\n");
-}
-#endif
-
-
 /*
  * parse_user_definition: parses the user definition portion of the  file
  *
@@ -56,28 +38,25 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 		if ((len = getline(&line, &n, input_stream)) == -1)
 			goto malformed_line;
 
-		printf("line:%s", line);
+//		printf("line:%s", line);
 		if (len == 2 && strncmp(line, ".\n", 2) == 0)
 			goto end_of_section;
 
-		if (len > LINE_LEN)
-			goto malformed_line;
-
-		len = get_user(line, &user, DELIMITERS);
+		len = get_user(line, &user, ".\n");
 		if (len < 0 )
 			goto malformed_line;
-		printf("User:<%s>\n", user);
+//		printf("User:<%s>\n", user);
 		
-		len = get_group(line, &group, DELIMITERS);
+		len = get_group(line, &group, " \n");
 		if (len < 0)
 			goto malformed_line;
-		printf("Group:<%s>\n", group);
+//		printf("Group:<%s>\n", group);
 
-		len = get_filename(line, &filename, DELIMITERS);
+		len = get_filename(line, &filename, ". \n");
 		if (len > FILENAME_LEN)
 			goto malformed_line;
-		if (len > 0)
-			printf("Filename:<%s>%d\n", filename, len);
+//		if (len > 0)
+//			printf("Filename:<%s>%d\n", filename, len);
 		/*
 		 * At this point it is quaranteed that we have
 		 * proper user, group, and filename (components missing)
@@ -89,13 +68,14 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 				break;
 			}
 		} else {
-			file_handle = f_ops_update(fs, file_handle->filename, user, group, READ_WRITE);
+			file_handle = f_ops_update(fs, file_handle->filename,
+						   user, group, READ_WRITE);
 			if (!file_handle) {
 				fprintf(stderr, "E: Failed to update <%s> <%s.%s>\n", filename, user, group);
 				break;
 			}
 		}
-		printf("--\n");
+//		printf("--\n");
 		free(line);
 	}
 	free(line);
@@ -148,14 +128,28 @@ end_of_section:
 }
 */
 
+
+#ifdef _DEBUG
+void ls(struct file *fs)
+{
+	printf("-------\n");
+	while (fs != NULL) {
+		while(fs->acls != NULL) {
+			 printf("%s:%s.%s %d\n", fs->filename, fs->acls->user,
+				fs->acls->group, fs->acls->permissions);
+			 fs->acls =fs->acls->next;
+		}
+		fs = fs->next;
+	}
+	printf("-------\n");
+}
+#endif
+
 int main(int argc, char **argv)
 {
 	struct file *FS;
 
 	FS = f_ops_mount(&FS);
-#ifdef _DEBUG
-	ls(FS);
-#endif
 	parse_user_definition_portion(&FS, stdin);
 #ifdef _DEBUG
 	ls(FS);

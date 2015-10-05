@@ -15,7 +15,7 @@ all: $(OBJECTS)
 	@$(CC) $(CFLAGS) -c $^
 
 check:
-	scripts/checkpatch.pl --no-tree -f src/*
+	scripts/checkpatch.pl --no-tree -f src/f_ops.c
 
 clean:
 	rm -f $(EXECUTABLE)
