@@ -78,6 +78,7 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 //		printf("--\n");
 		free(line);
 	}
+	fprintf(stderr, "E: Parsing aborted\n");
 	free(line);
 	return -1;
 
@@ -85,7 +86,7 @@ malformed_line:
 	fprintf(stderr, "\n");
 	fprintf(stderr, "E: Malformed line: %s", line);
 	fprintf(stderr, "E: Malformed user definition section\n");
-	fprintf(stderr, "E: Setting environment stopped here... :-(\n");
+	fprintf(stderr, "E: Parsing aborted\n");
 	fprintf(stderr, "\n");
 	free(line);
 	return -1;
