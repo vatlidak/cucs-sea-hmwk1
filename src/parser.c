@@ -1,7 +1,7 @@
 /*
- * Filename
+ * Filename: src/parser.c
  *
- * Description
+ * Description: Implements a set of parser methods
  *
  * Copyright (C) 2015 V. Atlidakis
  *
@@ -13,6 +13,18 @@
 #include "parser.h"
 
 
+/*
+ * get_user: parsing the user section from an input line
+ *
+ * line: the line to be parsed
+ * user: the adress of a pointer that will point the start of user field
+ * delimiters: the delimiters for the parsing
+ *
+ * return: the length of the token retrieved
+ *
+ * Note that this method will tokenize the line buffer and user will
+ * be pointing a part of line buffer
+ */
 int get_user(char *line, char **user, char *delimiters)
 {
 	char *token;
@@ -26,6 +38,19 @@ int get_user(char *line, char **user, char *delimiters)
 	return strlen(*user);
 }
 
+
+/*
+ * get_group: parsing the group section from an input line
+ *
+ * line: the line to be parsed
+ * group: the adress of a pointer that will point the start of group field
+ * delimiters: the delimiters for the parsing
+ *
+ * return: the length of the token retrieved
+ *
+ * Note that this method will tokenize the line buffer and group will
+ * be pointing a part of line buffer
+ */
 int get_group(char *line, char **group, char *delimiters)
 {
 	char *token;
@@ -39,6 +64,19 @@ int get_group(char *line, char **group, char *delimiters)
 	return strlen(*group);
 }
 
+
+/*
+ * get_filename: parsing the filename section from an input line
+ *
+ * line: the line to be parsed
+ * group: the adress of a pointer that will point the start of group field
+ * delimiters: the delimiters for the parsing
+ *
+ * return: the length of the token retrieved
+ *
+ * Note that this method will tokenize the line buffer and group will
+ * be pointing a part of line buffer
+ */
 int get_filename(char *line, char **filename, char *delimiters)
 {
 	char *token;
@@ -52,12 +90,15 @@ int get_filename(char *line, char **filename, char *delimiters)
 	return strlen(*filename);
 }
 
+
 /*
- * @tokenize - Parse line into args separated by delimiter(s)
+ * tokenize: parse line into args separated by delimiter(s)
  *
- * @line - The line to be parsed
- * @args - The args retrieved by the line
- * @delim - A set of delimiters
+ * line: the line to be parsed
+ * args the args retrieved by the line
+ * delim: a set of delimiters
+ *
+ * return: zero on success, one otherwise
  *
  * An array, whose starting address is pointed by "*args",
  * is allocated to store any args found in line. This array
