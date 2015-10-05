@@ -13,123 +13,43 @@
 #include "parser.h"
 
 
-int get_user(const char *line, char **user)
+int get_user(char *line, char **user, char *delimiters)
 {
 	char *token;
 
-	token = strtok(line, ". \n");
+	token = strtok(line, delimiters);
 	if (token == NULL)
 		return -1;
 
 	*user = token;
 
-	return strlen(user);
-//	user[0] = '\0';
-//	/* parse user name field */
-//	for (len = 0; len < strlen(line) && line[len] != '.'; len++)
-//		;
-//	if (line[len] != '.')
-//		goto error;
-//
-//	if ((*user = calloc(len + 1, sizeof(char)) == NULL)) {
-//		perror("calloc");
-//		goto error;
-//	}
-//	strncpy(*user, line, len);
-//	*user[len] = '\0';
-//
-//	return len;
-//error:
-//	return -1;
+	return strlen(*user);
 }
 
-int get_group(const char *line, char **group)
+int get_group(char *line, char **group, char *delimiters)
 {
 	char *token;
 
-	token = strtok(NULL, ". \n");
+	token = strtok(NULL, delimiters);
 	if (token == NULL)
 		return -1;
 
 	*group = token;
 
-	return strlen(group);
-//	group[0]='\0';
-//	/* move past user name field */
-//	for (len = 0; len < strlen(line) && line[len] != '.'; len++)
-//		;
-//	if (line[len] != '.')
-//		goto error;
-//	line = line + len + 1;
-//	
-//	/* parse group name field */
-//	for (len = 0; len < strlen(line) && line[len] != ' '
-//	     && line[len] != '\n'; len++)
-//		;
-//
-//	if (!len)
-//		goto error;
-//
-//	if ((*group = calloc(len + 1, sizeof(char)) == NULL)) {
-//		perror("calloc");
-//		goto error;
-//	}
-//
-//	strncpy(*group, line, len);
-//	*group[len] = '\0';
-//
-//	return len;
-//error:
-//	return -1;
+	return strlen(*group);
 }
 
-int get_filename(const char *line, char **filename)
+int get_filename(char *line, char **filename, char *delimiters)
 {
 	char *token;
 
-	token = strtok(NULL, ". \n");
+	token = strtok(NULL, delimiters);
 	if (token == NULL)
 		return -1;
 
 	*filename = token;
 
-	return strlen(filename);
-
-//	filename[0] = '\0';
-//	/*
-//	 * move past user name and group name field and return if
-//	 * file name starting point not found
-//	 */
-//	for (len = 0; len < strlen(line); len++)
-//		if (line[len] == ' ')
-//			break;
-//
-//	//printf("@@<%c>", line[len]);
-//	if (line[len] == '\0')
-//		return 0;
-//
-//	//printf("line:<%s>\n", line);
-//	line = line + len + 1;
-//	//printf("line:<C:%c>\n", *line);
-//
-//	/* strip possible spaces */
-//	while (*line == ' ')
-//		line++;
-//
-//	/* remember, line contains \n  which doesn't count*/
-//	len = strlen(line);
-//
-//	if ((*filename = calloc(len, sizeof(char)) == NULL)) {
-//		perror("calloc");
-//		goto error;
-//	}
-//
-//	strncpy(*filename, line, len-1);
-//	*filename[len-1] = '\0';
-//	return len - 1;
-//
-//error:
-//	return -1;
+	return strlen(*filename);
 }
 
 /*

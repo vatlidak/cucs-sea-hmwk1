@@ -16,7 +16,7 @@
 
 int fs_is_mounted;
 
-static inline int get_parent(const char *filename, char *parent)
+static int get_parent(const char *filename, char *parent)
 {
 	int len;
 
@@ -29,6 +29,7 @@ static inline int get_parent(const char *filename, char *parent)
 
 	strncpy(parent, filename, len);
 	parent[len] ='\0';
+	
 	return len;
 }
 
@@ -43,7 +44,9 @@ static struct file *f_ops_get_handle(struct file *fs, char *filename)
 	return fs;
 }
 
-
+/*
+ *
+ */
 static struct file *do_f_ops_mount(struct file **fs)
 {
 	struct file *file_handle;
@@ -54,7 +57,7 @@ static struct file *do_f_ops_mount(struct file **fs)
 	file_handle = f_ops_create(fs, "/home", "*", "*");
 	if (!file_handle)
 		return NULL;
-	f_ops_update(*fs, "/home", "*", "*", READ);
+	f_ops_update(fs, "/home", "*", "*", READ);
 	f_ops_create(fs, "/tmp", "*", "*");
 
 	fs_is_mounted = 1;
@@ -64,9 +67,11 @@ static struct file *do_f_ops_mount(struct file **fs)
 	return *fs;
 }
 
-
+/*
+ * Note: force predecesors
+ */
 static struct file *do_f_ops_create(struct file **fs, char *filename,
-			    char *user, char *group)
+				    char *user, char *group)
 {
 	int rval;
 	struct file *f;
@@ -102,22 +107,26 @@ static struct file *do_f_ops_create(struct file **fs, char *filename,
 	return f;
 }
 
-static struct file *do_f_ops_update(struct file *fs, char *filename,
+
+/*
+ *
+ */
+static struct file *do_f_ops_update(struct file **fs, char *filename,
 				    char *user, char *group, int permissions)
 {
 	struct acl *acl;
 
 	struct file *file_handle; 
 
-	if (f_ops_acl_check(fs, filename, user, group, WRITE))
+	if (f_ops_acl_check(*fs, filename, user, group, WRITE))
 		return NULL;
 
-	file_handle = f_ops_get_handle(fs, filename);
+	file_handle = f_ops_get_handle(*fs, filename);
 	if (!file_handle)
 		return NULL;
 
 	acl = file_handle->acls;
-	while ( acl != NULL) {
+	while (acl != NULL) {
 		if (!strcmp(acl->user, user) && !strcmp(acl->group, group))
 		{
 		    acl->permissions = permissions;
@@ -138,30 +147,23 @@ static struct file *do_f_ops_update(struct file *fs, char *filename,
 	acl->next = file_handle->acls;
 	file_handle->acls = acl;
 
-	printf("Updated:<%s><%s>:<%s>\n", file_handle->filename, user, group);
+	printf("Updated:<%s><%s>:<%s>\n", filename, user, group);
 	return file_handle;
 }
 
 static int  do_acl_check(struct file *fs, char *filename, char *user,
 			 char *group, int permissions){
 
-	int len;
-	struct file *file_handle;
-	char parent[FILENAME_LEN];
-
-	if (!strcmp(filename, "/home") || !strcmp(filename, "/tmp"))
-	    return 0;
-
-	len = get_parent(filename, parent);
-	if (len <= 0)
-		return -1;
-
-	printf("----%s:%s:%d\n", filename,parent, len);
-	
-//	file_handle = f_ops_get_handle(fs, parent);
-//	if (file_handle == NULL)
+//	struct file *file_handle;
+//	char parent[FILENAME_LEN];
+//
+//	if (!strcmp(filename, "/home") || !strcmp(filename, "/tmp"))
+//	    return 0;
+//
+//	len = get_parent(filename, parent);
+//	if (len <= 0)
 //		return -1;
-	//printf("#%s\n", file_handle->filename);
+//
 	return 0;
 }
 
@@ -178,7 +180,7 @@ struct file *f_ops_create(struct file **fs, char *filename,
 }
 
 
-struct file *f_ops_update(struct file *fs, char *filename, char *user,
+struct file *f_ops_update(struct file **fs, char *filename, char *user,
 			    char *group, int permissions)
 {
 	return do_f_ops_update(fs, filename, user, group, permissions);

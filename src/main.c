@@ -15,6 +15,8 @@
 #include "f_ops.h"
 
 
+#define DELIMITERS ". \n"
+
 #ifdef _DEBUG
 void ls(struct file *fs)
 {
@@ -46,6 +48,7 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 
 	size_t n = 12345;
 
+	struct file *file_handle;
 
 	while (1) {
 		/* line set NULL: getline allocates appropriate buffer */
@@ -53,64 +56,50 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 		if ((len = getline(&line, &n, input_stream)) == -1)
 			goto malformed_line;
 
+		printf("line:%s", line);
 		if (len == 2 && strncmp(line, ".\n", 2) == 0)
 			goto end_of_section;
 
 		if (len > LINE_LEN)
 			goto malformed_line;
 
-		len = get_user(line, &user);
+		len = get_user(line, &user, DELIMITERS);
 		if (len < 0 )
 			goto malformed_line;
-
-		len = get_group(line, &group);
+		printf("User:<%s>\n", user);
+		
+		len = get_group(line, &group, DELIMITERS);
 		if (len < 0)
 			goto malformed_line;
-
-		len = get_filename(line, &filename);
-		if (len < 0 || len > FILENAME_LEN)
-			goto malformed_line;
-
-		printf("User:<%s>\n", user);
 		printf("Group:<%s>\n", group);
-		printf("Filename:<%s>\n", Filename);
-	
-//		/*
-//		 * At this point it is quaranteed that we have
-//		 * proper user, group, and filename (components missing)
-//		 */
-//		char abs_path[FILENAME_LEN + 1];
-////		printf("<%s>.<%s>:<%s>\n", user, group, filename);
-//		if (len) {
-//			int i=-1;
-//			char **components;
-//			
-//			tokenize(filename, &components, "/");
-//			if (strcmp(components[0], "home"))
-//			    goto malformed_line;
-//
-//			abs_path[0] = '\0';
-//			while (components[++i] != NULL) {
-//				sprintf(abs_path, "%s/%s",
-//					abs_path, components[i]);
-//				if (strlen(components[i]) > COMPONENT_LEN)
-//					break;
-//				if (strcmp(abs_path, "/home") == 0)
-//					continue;
-//				//printf("Component:<%s>\n", abs_path);
-//				if(!f_ops_create(fs, abs_path, user, group)) {
-//					fprintf(stderr, "E: Failed to create <%s> <%s.%s>\n", filename, user, group);
-//					break;
-//				}
-//			}
-//		}
-//		else {
-//			if (!f_ops_update(*fs, abs_path, user, group, READ_WRITE))
-//				fprintf(stderr, "E: Failed to update <%s> <%s.%s>\n", filename, user, group);
-//		}
-////		printf("--\n");
-//		free(line);
+
+		len = get_filename(line, &filename, DELIMITERS);
+		if (len > FILENAME_LEN)
+			goto malformed_line;
+		if (len > 0)
+			printf("Filename:<%s>%d\n", filename, len);
+		/*
+		 * At this point it is quaranteed that we have
+		 * proper user, group, and filename (components missing)
+		 */
+		if (len > 0) {
+			file_handle = f_ops_create(fs, filename, user, group);
+			if(!file_handle) {
+				fprintf(stderr, "E: Failed to create <%s> <%s.%s>\n", filename, user, group);
+				break;
+			}
+		} else {
+			file_handle = f_ops_update(fs, file_handle->filename, user, group, READ_WRITE);
+			if (!file_handle) {
+				fprintf(stderr, "E: Failed to update <%s> <%s.%s>\n", filename, user, group);
+				break;
+			}
+		}
+		printf("--\n");
+		free(line);
 	}
+	free(line);
+	return -1;
 
 malformed_line:
 	fprintf(stderr, "\n");
