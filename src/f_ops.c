@@ -15,6 +15,9 @@
 #include "f_ops.h"
 
 
+extern int env_is_set;
+
+
 /*
  * helper asserting validity of filename
  */
@@ -41,11 +44,9 @@ static int get_parent(const char *filename, char *parent)
 	int len;
 
 	len = strlen(filename);
-//	printf("%d\n", len);
 	for (; len > 0 && filename[len] != '/'; len--)
 		;
 
-//	printf("%d\n", len);
 	if (len == 0)
 		return 1;
 
@@ -77,7 +78,10 @@ static int do_f_ops_acl_check(struct file **fs, char *filename, char *user,
 			      char *group, int permissions)
 {
 	struct file *file_handle;
-	
+	struct acl *acl;
+
+	if (!env_is_set)
+		return 0;
 #ifdef _DEBUG
 	printf("checking::%s,%s,%s,%d\n", filename, user, group, permissions);
 #endif
@@ -85,8 +89,18 @@ static int do_f_ops_acl_check(struct file **fs, char *filename, char *user,
 	if (!file_handle)
 		return 1;
 
-	return 0;
+	acl = file_handle->acls;
+	if (!acl)
+		return 1;
 
+	while (acl != NULL) {
+		if (!strcmp(acl->user, "*") && !strcmp(acl->group, "*"))
+			return (acl->permissions & permissions) == 0;
+		if (!strcmp(acl->user, user) && !strcmp(acl->group, group))
+			return (acl->permissions & permissions) == 0;
+		acl = acl->next;
+	}
+	return 1;
 }
 
 
@@ -96,7 +110,7 @@ static int do_f_ops_acl_check(struct file **fs, char *filename, char *user,
 static struct file *do_f_ops_acl_set(struct file **fs, char *filename,
 				     char *user, char *group, int permissions)
 {
-	struct acl *acl;
+	struct acl **acl;
 	struct file *file_handle;
 
 #ifdef _DEBUG
@@ -106,31 +120,33 @@ static struct file *do_f_ops_acl_set(struct file **fs, char *filename,
 	if (!file_handle)
 		return NULL;
 
-	acl = file_handle->acls;
-	
-	acl = calloc(1, sizeof(struct acl));
-	if (!acl) {
+	acl = &file_handle->acls;
+
+	while (*acl != NULL)
+		acl = &((*acl)->next);
+
+	*acl = calloc(1, sizeof(struct acl));
+	if (!*acl) {
 		perror("calloc");
 		return NULL;
 	}
-	acl->permissions = permissions;
+	(*acl)->permissions = permissions;
 
-	acl->user = calloc(strlen(user) + 1, sizeof(char));
-	if (!acl->user) {
+	(*acl)->user = calloc(strlen(user) + 1, sizeof(char));
+	if (!(*acl)->user) {
 		perror("calloc");
 		return NULL;
 	}
-	strcpy(acl->user, user);
+	strcpy((*acl)->user, user);
 
-	acl->group = calloc(strlen(group) + 1, sizeof(char));
-	if (!acl->group) {
+	(*acl)->group = calloc(strlen(group) + 1, sizeof(char));
+	if (!(*acl)->group) {
 		perror("calloc");
 		return NULL;
 	}
-	strcpy(acl->group, group);
+	strcpy((*acl)->group, group);
 
-	acl->next = file_handle->acls;
-	file_handle->acls = acl;
+	(*acl)->next = NULL;
 
 	return file_handle;
 }
@@ -143,6 +159,7 @@ static struct file *do_f_ops_mount(struct file **fs)
 {
 	struct file *file_handle;
 
+	env_is_set = 0;
 	*fs = NULL;
 
 	file_handle = calloc(1, sizeof(struct file));
@@ -156,8 +173,6 @@ static struct file *do_f_ops_mount(struct file **fs)
 	file_handle->next = *fs;
 	*fs = file_handle;
 
-	if (!do_f_ops_acl_set(fs, file_handle->filename, "*", "*", NO_PERM))
-		return NULL;
 	if (!do_f_ops_acl_set(fs, file_handle->filename, "*", "*", READ_WRITE))
 		return NULL;
 
@@ -172,8 +187,6 @@ static struct file *do_f_ops_mount(struct file **fs)
 	file_handle->next = *fs;
 	*fs = file_handle;
 
-	if (!do_f_ops_acl_set(fs, file_handle->filename, "*", "*", NO_PERM))
-		return NULL;
 	if (!do_f_ops_acl_set(fs, file_handle->filename, "*", "*", READ_WRITE))
 		return NULL;
 
@@ -226,9 +239,6 @@ static struct file *do_f_ops_create(struct file **fs, char *filename,
 	f->next = *fs;
 	*fs = f;
 
-	if (!do_f_ops_acl_set(fs, filename, "*", "*", NO_PERM))
-		return NULL;
-
 	return do_f_ops_acl_set(fs, filename, user, group, READ_WRITE);
 }
 
@@ -247,14 +257,10 @@ static struct file *do_f_ops_update(struct file **fs, char *filename,
 struct file *f_ops_mount(struct file **fs)
 {
 	struct file *file_handle;
-
-	file_handle = do_f_ops_mount(fs);
 #ifdef _DEBUG
-	if (!file_handle)
-		printf("E: mounting\n");
-	else
-		printf("mounting\n");
+	printf("mounting\n");
 #endif
+	file_handle = do_f_ops_mount(fs);
 	return file_handle;
 }
 
@@ -263,14 +269,11 @@ struct file *f_ops_create(struct file **fs, char *filename,
 			    char *user, char *group)
 {
 	struct file *file_handle;
+#ifdef _DEBUG
+	printf("creating::%s,%s,%s\n", filename, user, group);
+#endif
 
 	file_handle =  do_f_ops_create(fs, filename, user, group);
-#ifdef _DEBUG
-	if (!file_handle)
-		printf("E:creating::%s,%s,%s\n", filename, user, group);
-	else
-		printf("creating::%s,%s,%s\n", filename, user, group);
-#endif
 	return file_handle;
 }
 
@@ -279,16 +282,11 @@ struct file *f_ops_update(struct file **fs, char *filename, char *user,
 			    char *group, int permissions)
 {
 	struct file *file_handle;
+#ifdef _DEBUG
+	printf("updating::%s,%s,%s,%d\n", filename, user,
+	       group, permissions);
+#endif
 
 	file_handle = do_f_ops_update(fs, filename, user, group, permissions);
-#ifdef _DEBUG
-	if (!file_handle)
-		printf("E: updating::%s,%s,%s,%d\n", filename, user,
-		       group, permissions);
-	else
-		
-		printf("updating::%s,%s,%s,%d\n", filename, user,
-		       group, permissions);
-#endif
 	return file_handle;
 }

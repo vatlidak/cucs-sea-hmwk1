@@ -15,6 +15,9 @@
 #include "f_ops.h"
 
 
+int env_is_set;
+
+
 /*
  * parse_user_definition: parses the user definition portion of the  file
  *
@@ -93,6 +96,7 @@ malformed_line:
 
 end_of_section:
 	free(line);
+	env_is_set = 1;
 	return 0;
 }
 
@@ -135,10 +139,10 @@ void ls(struct file *fs)
 {
 	printf("-------\n");
 	while (fs != NULL) {
-		while(fs->acls != NULL) {
+		while (fs->acls != NULL) {
 			 printf("%s:%s.%s %d\n", fs->filename, fs->acls->user,
 				fs->acls->group, fs->acls->permissions);
-			 fs->acls =fs->acls->next;
+			 fs->acls = fs->acls->next;
 		}
 		fs = fs->next;
 	}

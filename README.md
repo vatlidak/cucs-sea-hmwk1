@@ -23,3 +23,7 @@ An error caused by a line in the user definition section aborts further parsing.
 
 ## Questions
 -what happens if I recreate the file that exists in another line?
+
+
+## TODO
+free allocated spaces

@@ -1,11 +1,10 @@
-/* TODO: check this again */
 #define FILENAME_LEN 256
 #define COMPONENT_LEN 16
 
-#define READ 0
-#define WRITE 1
-#define READ_WRITE 2
-#define NO_PERM 3
+#define READ 1
+#define WRITE 2
+#define READ_WRITE 3
+#define NO_PERM 0
 
 
 struct acl {
