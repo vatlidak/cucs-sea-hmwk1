@@ -80,8 +80,6 @@ static int do_f_ops_acl_check(struct file **fs, char *filename, char *user,
 	if (!env_is_set)
 		return 0;
 	
-	DEBUG("checking::%s,%s,%s,%d\n", filename, user, group, permissions);
-	
 	file_handle = f_ops_get_handle(*fs, filename);
 	if (!file_handle)
 		return 1;
@@ -91,9 +89,9 @@ static int do_f_ops_acl_check(struct file **fs, char *filename, char *user,
 		return 1;
 
 	while (acl != NULL) {
-		if (!strcmp(acl->user, "*") && !strcmp(acl->group, "*"))
+		if (!strcmp(acl->user, "*") || !strcmp(acl->group, "*"))
 			return (acl->permissions & permissions) == 0;
-		if (!strcmp(acl->user, user) && !strcmp(acl->group, group))
+		if (!strcmp(acl->user, user) || !strcmp(acl->group, group))
 			return (acl->permissions & permissions) == 0;
 		acl = acl->next;
 	}
