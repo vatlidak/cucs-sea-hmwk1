@@ -14,14 +14,18 @@
 #include "parser.h"
 #include "f_ops.h"
 
+#ifdef _DEBUG
+#define DEBUG(fmt,...) fprintf(stdout, fmt, ## __VA_ARGS__)
+#else
+#define DEBUG(fmt,...)
+#endif
+
 
 int env_is_set;
 
 
 /*
  * parse_user_definition: parses the user definition portion of the  file
- *
- * @input_stream: the input to read the file from
  */
 static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 {
@@ -36,30 +40,27 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 	struct file *file_handle;
 
 	while (1) {
-		/* line set NULL: getline allocates appropriate buffer */
+		/* when line is NULL: getline allocates appropriate buffer */
 		line = NULL;
 		if ((len = getline(&line, &n, input_stream)) == -1)
 			goto malformed_line;
 
-//		printf("line:%s", line);
 		if (len == 2 && strncmp(line, ".\n", 2) == 0)
 			goto end_of_section;
 
 		len = get_user(line, &user, ".\n");
 		if (len < 0 )
 			goto malformed_line;
-//		printf("User:<%s>\n", user);
 		
-		len = get_group(line, &group, " \n");
+		len = get_group(NULL, &group, " \n");
 		if (len < 0)
 			goto malformed_line;
-//		printf("Group:<%s>\n", group);
+		
+		DEBUG("User:%s, Group:%s\n", user, group);
 
-		len = get_filename(line, &filename, ". \n");
+		len = get_filename(NULL, &filename, ". \n");
 		if (len > FILENAME_LEN)
 			goto malformed_line;
-//		if (len > 0)
-//			printf("Filename:<%s>%d\n", filename, len);
 		/*
 		 * At this point it is quaranteed that we have
 		 * proper user, group, and filename (components missing)
@@ -67,21 +68,24 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 		if (len > 0) {
 			file_handle = f_ops_create(fs, filename, user, group);
 			if(!file_handle) {
-				fprintf(stderr, "E: Failed to create <%s> <%s.%s>\n", filename, user, group);
+				fprintf(stderr,
+					"E: Failed to create <%s> <%s.%s>\n",
+					filename, user, group);
 				break;
 			}
 		} else {
 			file_handle = f_ops_update(fs, file_handle->filename,
 						   user, group, READ_WRITE);
 			if (!file_handle) {
-				fprintf(stderr, "E: Failed to update <%s> <%s.%s>\n", filename, user, group);
+				fprintf(stderr,
+					"E: Failed to update <%s> <%s.%s>\n",
+					filename, user, group);
 				break;
 			}
 		}
-//		printf("--\n");
 		free(line);
 	}
-	fprintf(stderr, "E: Parsing aborted\n");
+	fprintf(stderr, "E: Parsing user definition section aborted\n");
 	free(line);
 	return -1;
 
@@ -103,35 +107,61 @@ end_of_section:
 
 /*
  * parse_file_operation: parses the file operation portion of the  file
- *
- * @input_stream: the input to read the file from
  */
-/*static int parse_file_operation_portion(FILE *input_stream)
+static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 {
 	int len;
+	char *cmd;
 	char *line;
+	char *user;
+	char *group;
+	char *filename;
 	size_t n = 12345;
 
 	line = NULL;
 	while ((len = getline(&line, &n, input_stream)) > 0) {
-		if (len == 2 && strncmp(line, ".\n", 2) == 0)
-			goto end_of_section;
-		printf("%d:%s\n", len, line);
+		
+		len = get_cmd(line, &cmd, " ");
+		if (len < 0 )
+			goto malformed_line;
+
+		len = get_user(NULL, &user, ".\n");
+		if (len < 0 )
+			goto malformed_line;
+		
+		len = get_group(NULL, &group, " \n");
+		if (len < 0)
+			goto malformed_line;
+	
+		len = get_filename(NULL, &filename, ". \n");
+		if (len > FILENAME_LEN)
+			goto malformed_line;
+		
+		DEBUG("cmd:%s, User:%s, Group:%s, Filename:%s\n",
+		      cmd, user, group, filename);
+
+		if (!strcmp(cmd, "READ"))
+			printf("cmd:%d\n",
+			       f_ops_acl_check(fs, filename, user,
+					       group, READ));
+		else if (!strcmp(cmd, "WRITE"))
+			printf("cmd:%d:%s\n", len, line);
+		else
+			printf("Not implememnted\n");
+
 		free(line);
 		line = NULL;
 	}
+	goto end_of_section;
 
+malformed_line:
 	fprintf(stderr, "E: Malformed user definition section\n");
 	return -1;
 
 end_of_section:
 	free(line);
 	return 0;
-
-
-	return 0;
 }
-*/
 
 
 #ifdef _DEBUG
@@ -150,15 +180,23 @@ void ls(struct file *fs)
 }
 #endif
 
+
 int main(int argc, char **argv)
 {
+	int rval;
 	struct file *FS;
 
 	FS = f_ops_mount(&FS);
-	parse_user_definition_portion(&FS, stdin);
+
+	rval = parse_user_definition_portion(&FS, stdin);
+	if (rval)
+		goto abort;
 #ifdef _DEBUG
 	ls(FS);
 #endif
-	//parse_file_operation(stdin);
+	parse_file_operation_portion(&FS, stdin);
 	return 0;
+abort:
+	fprintf(stderr, "Simulation aborted\n");
+	return -1;
 }

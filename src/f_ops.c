@@ -14,6 +14,12 @@
 #include "parser.h"
 #include "f_ops.h"
 
+#ifdef _DEBUG
+#define DEBUG(fmt,...) fprintf(stdout, fmt, ## __VA_ARGS__)
+#else
+#define DEBUG(fmt,...)
+#endif
+
 
 extern int env_is_set;
 
@@ -73,9 +79,9 @@ static int do_f_ops_acl_check(struct file **fs, char *filename, char *user,
 
 	if (!env_is_set)
 		return 0;
-#ifdef _DEBUG
-	printf("checking::%s,%s,%s,%d\n", filename, user, group, permissions);
-#endif
+	
+	DEBUG("checking::%s,%s,%s,%d\n", filename, user, group, permissions);
+	
 	file_handle = f_ops_get_handle(*fs, filename);
 	if (!file_handle)
 		return 1;
@@ -248,9 +254,9 @@ static struct file *do_f_ops_update(struct file **fs, char *filename,
 struct file *f_ops_mount(struct file **fs)
 {
 	struct file *file_handle;
-#ifdef _DEBUG
-	printf("mounting\n");
-#endif
+
+	DEBUG("mounting\n");
+
 	file_handle = do_f_ops_mount(fs);
 	return file_handle;
 }
@@ -260,9 +266,8 @@ struct file *f_ops_create(struct file **fs, char *filename,
 			    char *user, char *group)
 {
 	struct file *file_handle;
-#ifdef _DEBUG
-	printf("creating::%s,%s,%s\n", filename, user, group);
-#endif
+
+	DEBUG("creating::%s,%s,%s\n", filename, user, group);
 
 	file_handle =  do_f_ops_create(fs, filename, user, group);
 	return file_handle;
@@ -273,11 +278,21 @@ struct file *f_ops_update(struct file **fs, char *filename, char *user,
 			    char *group, int permissions)
 {
 	struct file *file_handle;
-#ifdef _DEBUG
-	printf("updating::%s,%s,%s,%d\n", filename, user,
+
+	DEBUG("updating::%s,%s,%s,%d\n", filename, user,
 	       group, permissions);
-#endif
 
 	file_handle = do_f_ops_update(fs, filename, user, group, permissions);
 	return file_handle;
+}
+
+int f_ops_acl_check(struct file **fs, char *filename, char *user,
+		    char *group, int permissions)
+{
+
+	DEBUG("checking::%s,%s,%s,%d\n", filename, user,
+	       group, permissions);
+
+	return do_f_ops_acl_check(fs, filename, user, group,
+				   permissions);
 }

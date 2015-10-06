@@ -24,3 +24,5 @@ struct file {
 struct file *f_ops_mount(struct file **fs);
 struct file *f_ops_create(struct file **fs, char *filename, char *user, char *group);
 struct file *f_ops_update(struct file **fs, char *filename, char *user, char *group, int permissions);
+
+int f_ops_acl_check(struct file **fs, char *filename, char *user, char *group, int permissions);

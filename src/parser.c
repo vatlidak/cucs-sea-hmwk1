@@ -34,7 +34,7 @@ int get_group(char *line, char **group, char *delimiters)
 {
 	char *token;
 
-	token = strtok(NULL, delimiters);
+	token = strtok(line, delimiters);
 	if (token == NULL)
 		return -1;
 
@@ -48,13 +48,27 @@ int get_filename(char *line, char **filename, char *delimiters)
 {
 	char *token;
 
-	token = strtok(NULL, delimiters);
+	token = strtok(line, delimiters);
 	if (token == NULL)
 		return -1;
 
 	*filename = token;
 
 	return strlen(*filename);
+}
+
+
+int get_cmd(char *line, char **cmd, char *delimiters)
+{
+	char *token;
+
+	token = strtok(line, delimiters);
+	if (token == NULL)
+		return -1;
+
+	*cmd = token;
+
+	return strlen(*cmd);
 }
 
 
