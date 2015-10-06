@@ -16,6 +16,58 @@
 #include "parser.h"
 
 
+int get_cmd_user_group_filename(char *line, char **cmd, char **user,
+				char **group, char **filename)
+{
+	char *token;
+
+	token = strtok(line, " ");
+	if (token == NULL)
+		return -1;
+	*cmd = token;
+
+	token = strtok(NULL, ".");
+	if (token == NULL)
+		return -1;
+	*user = token;
+
+	token = strtok(NULL, " ");
+	if (token == NULL)
+		return -1;
+	*group = token;
+
+	token = strtok(NULL, "\n");
+	if (token == NULL)
+		return -1;
+	*filename = token;
+
+	return strlen(*filename);
+}
+
+int get_user_group_perm(char *line, char **user,
+			char **group, char **perm)
+{
+	char *token;
+
+	token = strtok(line, ".");
+	if (token == NULL)
+		return -1;
+	*user = token;
+
+	token = strtok(NULL, " ");
+	if (token == NULL)
+		return -1;
+	*group = token;
+
+	token = strtok(NULL, "\n");
+	if (token == NULL)
+		return -1;
+	*perm = token;
+
+	return strlen(*perm);
+}
+
+
 int get_user(char *line, char **user, char *delimiters)
 {
 	char *token;

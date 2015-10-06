@@ -15,9 +15,9 @@
 #include "f_ops.h"
 
 #ifdef _DEBUG
-#define DEBUG(fmt,...) fprintf(stdout, fmt, ## __VA_ARGS__)
+#define DEBUG(fmt, ...) fprintf(stdout, fmt, ## __VA_ARGS__)
 #else
-#define DEBUG(fmt,...)
+#define DEBUG(fmt, ...)
 #endif
 
 
@@ -42,23 +42,24 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 	while (1) {
 		/* when line is NULL: getline allocates appropriate buffer */
 		line = NULL;
-		if ((len = getline(&line, &n, input_stream)) == -1)
+		len = getline(&line, &n, input_stream);
+		if (len == -1)
 			goto malformed_line;
 
 		if (len == 2 && strncmp(line, ".\n", 2) == 0)
 			goto end_of_section;
 
 		len = get_user(line, &user, ".\n");
-		if (len < 0 )
-			goto malformed_line;
-		
-		len = get_group(NULL, &group, " \n");
 		if (len < 0)
 			goto malformed_line;
-		
+
+		len = get_group(NULL, &group, "\n ");
+		if (len < 0)
+			goto malformed_line;
+
 		DEBUG("User:%s, Group:%s\n", user, group);
 
-		len = get_filename(NULL, &filename, ". \n");
+		len = get_filename(NULL, &filename, ".\n ");
 		if (len > FILENAME_LEN)
 			goto malformed_line;
 		/*
@@ -67,7 +68,7 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 		 */
 		if (len > 0) {
 			file_handle = f_ops_create(fs, filename, user, group);
-			if(!file_handle) {
+			if (!file_handle) {
 				fprintf(stderr,
 					"E: Failed to create <%s> <%s.%s>\n",
 					filename, user, group);
@@ -114,40 +115,91 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 	char *cmd;
 	char *line;
 	char *user;
+	char *perm;
 	char *group;
 	char *filename;
+	char *linecopy;
 	size_t n = 12345;
 
 	line = NULL;
 	while ((len = getline(&line, &n, input_stream)) > 0) {
-		
-		len = get_cmd(line, &cmd, " ");
-		if (len < 0 )
-			goto malformed_line;
 
-		len = get_user(NULL, &user, ".\n");
-		if (len < 0 )
-			goto malformed_line;
-		
-		len = get_group(NULL, &group, " \n");
-		if (len < 0)
-			goto malformed_line;
-	
-		len = get_filename(NULL, &filename, ". \n");
-		if (len > FILENAME_LEN)
-			goto malformed_line;
-		
+		linecopy = calloc(strlen(line), sizeof(char));
+		if (linecopy == NULL) {
+			perror("calloc");
+			goto end_of_section;
+		}
+		strcpy(linecopy, line);
+		linecopy[strlen(line)-1] = '\0';
+
+		len = get_cmd_user_group_filename(line, &cmd, &user, &group,
+						  &filename);
 		DEBUG("cmd:%s, User:%s, Group:%s, Filename:%s\n",
 		      cmd, user, group, filename);
 
-		if (!strcmp(cmd, "READ"))
-			printf("cmd:%d\n",
-			       f_ops_acl_check(fs, filename, user,
+		if (len < 0)
+			goto malformed_line;
+		if (strlen(filename) > FILENAME_LEN)
+			goto malformed_line;
+
+		if (!strcmp(cmd, "READ")) {
+			printf("%s:%d\n", linecopy,
+			       -f_ops_acl_check(fs, filename, user,
 					       group, READ));
-		else if (!strcmp(cmd, "WRITE"))
-			printf("cmd:%d:%s\n", len, line);
-		else
+		} else if (!strcmp(cmd, "WRITE")) {
+			printf("%s:%d\n", linecopy,
+			       -f_ops_acl_check(fs, filename, user,
+					       group, WRITE));
+		} else if (!strcmp(cmd, "DELETE")) {
+			printf("%s:%d\n", linecopy,
+			       -f_ops_acl_check(fs, filename, user,
+					       group, WRITE));
+		} else if (!strcmp(cmd, "ACL")) {
+
+			printf("%s:%d\n", linecopy,
+			       -f_ops_acl_check(fs, filename, user,
+					       group, WRITE));
+acl_loop:
+			len = getline(&line, &n, input_stream);
+			if (len == -1)
+				goto malformed_line;
+			if (len == 2 && strncmp(line, ".\n", 2) == 0)
+				continue;
+			else {
+				len = get_user_group_perm(line, &user,
+							      &group, &perm);
+				if (len < 0)
+					goto malformed_line;
+				if (strlen(filename) > FILENAME_LEN)
+					goto malformed_line;
+				DEBUG("cmd:%s, User:%s, Group:%s, Perm:%s\n",
+				      "ACL", user, group, perm);
+				goto acl_loop;
+			}
+		} else if (!strcmp(cmd, "CREATE")) {
+			printf("%s:%d\n", linecopy,
+			       f_ops_acl_check(fs, filename, user,
+					       group, WRITE));
+create_loop:
+			len = getline(&line, &n, input_stream);
+			if (len == -1)
+				goto malformed_line;
+			if (len == 2 && strncmp(line, ".\n", 2) == 0)
+				continue;
+			else {
+				len = get_user_group_perm(line, &user,
+							      &group, &perm);
+				if (len < 0)
+					goto malformed_line;
+				if (strlen(filename) > FILENAME_LEN)
+					goto malformed_line;
+				DEBUG("cmd:%s, User:%s, Group:%s, Perm:%s\n",
+				      "CREATE", user, group, perm);
+				goto create_loop;
+			}
+		} else {
 			printf("Not implememnted\n");
+		}
 
 		free(line);
 		line = NULL;
@@ -155,7 +207,7 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 	goto end_of_section;
 
 malformed_line:
-	fprintf(stderr, "E: Malformed user definition section\n");
+	fprintf(stderr, "E: Malformed operations section\n");
 	return -1;
 
 end_of_section:
@@ -169,10 +221,11 @@ void ls(struct file *fs)
 {
 	printf("-------\n");
 	while (fs != NULL) {
-		while (fs->acls != NULL) {
-			 printf("%s:%s.%s %d\n", fs->filename, fs->acls->user,
-				fs->acls->group, fs->acls->permissions);
-			 fs->acls = fs->acls->next;
+		struct acl *temp = fs->acls;
+		while (temp != NULL) {
+			 printf("%s:%s.%s-%d\n", fs->filename, temp->user,
+				temp->group, temp->permissions);
+			 temp = temp->next;
 		}
 		fs = fs->next;
 	}

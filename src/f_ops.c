@@ -15,9 +15,9 @@
 #include "f_ops.h"
 
 #ifdef _DEBUG
-#define DEBUG(fmt,...) fprintf(stdout, fmt, ## __VA_ARGS__)
+#define DEBUG(fmt, ...) fprintf(stdout, fmt, ## __VA_ARGS__)
 #else
-#define DEBUG(fmt,...)
+#define DEBUG(fmt, ...)
 #endif
 
 
@@ -79,7 +79,7 @@ static int do_f_ops_acl_check(struct file **fs, char *filename, char *user,
 
 	if (!env_is_set)
 		return 0;
-	
+
 	file_handle = f_ops_get_handle(*fs, filename);
 	if (!file_handle)
 		return 1;
