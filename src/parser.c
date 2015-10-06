@@ -3,6 +3,9 @@
  *
  * Description: Implements a set of parser methods
  *
+ * Note that these methods will tokenize the line buffer
+ * and pointers will be pointing some part of line buffer
+ *
  * Copyright (C) 2015 V. Atlidakis
  *
  * COMS W4187 Fall 2015, Columbia University
@@ -13,18 +16,6 @@
 #include "parser.h"
 
 
-/*
- * get_user: parsing the user section from an input line
- *
- * line: the line to be parsed
- * user: the adress of a pointer that will point the start of user field
- * delimiters: the delimiters for the parsing
- *
- * return: the length of the token retrieved
- *
- * Note that this method will tokenize the line buffer and user will
- * be pointing a part of line buffer
- */
 int get_user(char *line, char **user, char *delimiters)
 {
 	char *token;
@@ -39,18 +30,6 @@ int get_user(char *line, char **user, char *delimiters)
 }
 
 
-/*
- * get_group: parsing the group section from an input line
- *
- * line: the line to be parsed
- * group: the adress of a pointer that will point the start of group field
- * delimiters: the delimiters for the parsing
- *
- * return: the length of the token retrieved
- *
- * Note that this method will tokenize the line buffer and group will
- * be pointing a part of line buffer
- */
 int get_group(char *line, char **group, char *delimiters)
 {
 	char *token;
@@ -65,18 +44,6 @@ int get_group(char *line, char **group, char *delimiters)
 }
 
 
-/*
- * get_filename: parsing the filename section from an input line
- *
- * line: the line to be parsed
- * group: the adress of a pointer that will point the start of group field
- * delimiters: the delimiters for the parsing
- *
- * return: the length of the token retrieved
- *
- * Note that this method will tokenize the line buffer and group will
- * be pointing a part of line buffer
- */
 int get_filename(char *line, char **filename, char *delimiters)
 {
 	char *token;

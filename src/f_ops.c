@@ -18,9 +18,6 @@
 extern int env_is_set;
 
 
-/*
- * helper asserting validity of filename
- */
 static int is_invalid_name(const char *filename)
 {
 	int i;
@@ -36,9 +33,6 @@ static int is_invalid_name(const char *filename)
 }
 
 
-/*
- * helper getting fullpath's parent path
- */
 static int get_parent(const char *filename, char *parent)
 {
 	int len;
@@ -57,9 +51,6 @@ static int get_parent(const char *filename, char *parent)
 }
 
 
-/*
- * helper getting a file_handle on a filename
- */
 static struct file *f_ops_get_handle(struct file *fs, char *filename)
 {
 	while (fs != NULL) {
@@ -72,7 +63,7 @@ static struct file *f_ops_get_handle(struct file *fs, char *filename)
 
 
 /*
- * Main method doinf the ACL checks
+ * Main method doing the ACL checks
  */
 static int do_f_ops_acl_check(struct file **fs, char *filename, char *user,
 			      char *group, int permissions)
