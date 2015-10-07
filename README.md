@@ -21,9 +21,12 @@ Attempting to create a file that already exists, produces an error.
 
 An error caused by a line in the user definition section aborts further parsing.
 
+Deleting /tmp and /home is prohibited; unless done from unmount method
+
 ## Questions
 -what happens if I recreate the file that exists in another line?
 
 
 ## TODO
 free allocated spaces
+

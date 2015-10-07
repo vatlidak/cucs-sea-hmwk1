@@ -1,7 +1,7 @@
 /*
- * Filename
+ * Filename: src/f_ops.c
  *
- * Description
+ * Description: Implements the file system operations
  *
  * Copyright (C) 2015 V. Atlidakis
  *
@@ -21,7 +21,7 @@
 #endif
 
 
-extern int env_is_set;
+int env_is_set;
 
 
 static int is_invalid_name(const char *filename)
@@ -48,7 +48,7 @@ static int get_parent(const char *filename, char *parent)
 		;
 
 	if (len == 0)
-		return 1;
+		return -1;
 
 	strncpy(parent, filename, len);
 	parent[len] = '\0';
@@ -57,7 +57,7 @@ static int get_parent(const char *filename, char *parent)
 }
 
 
-static struct file *f_ops_get_handle(struct file *fs, char *filename)
+static inline struct file *f_ops_get_handle(struct file *fs, char *filename)
 {
 	while (fs != NULL) {
 		if (!strcmp(fs->filename, filename))
@@ -68,14 +68,29 @@ static struct file *f_ops_get_handle(struct file *fs, char *filename)
 }
 
 
+static inline struct file *f_ops_get_handle_prev(struct file *fs,
+						 char *filename)
+{
+	while (fs != NULL) {
+		if (fs->next)
+			if (!strcmp(fs->next->filename, filename))
+				break;
+		fs = fs->next;
+	}
+	return fs;
+}
+
+
 /*
  * Main method doing the ACL checks
+ *
+ * Needs work
  */
-static int do_f_ops_acl_check(struct file **fs, char *filename, char *user,
-			      char *group, int permissions)
+static int do_f_ops_acl_check(struct file **fs, char *filename,
+			      struct acl *pacl)
 {
 	struct file *file_handle;
-	struct acl *acl;
+	struct acl *ptemp;
 
 	if (!env_is_set)
 		return 0;
@@ -84,74 +99,82 @@ static int do_f_ops_acl_check(struct file **fs, char *filename, char *user,
 	if (!file_handle)
 		return 1;
 
-	acl = file_handle->acls;
-	if (!acl)
+	ptemp = file_handle->acls;
+	if (!ptemp)
 		return 1;
 
-	while (acl != NULL) {
-		if (!strcmp(acl->user, "*") || !strcmp(acl->group, "*"))
-			return (acl->permissions & permissions) == 0;
-		if (!strcmp(acl->user, user) || !strcmp(acl->group, group))
-			return (acl->permissions & permissions) == 0;
-		acl = acl->next;
+	while (ptemp != NULL) {
+		if (!strcmp(ptemp->user, "*") ||
+		    !strcmp(ptemp->group, "*"))
+			return (ptemp->permissions & pacl->permissions) == 0;
+		if (!strcmp(ptemp->user, pacl->user) ||
+		    !strcmp(ptemp->group, pacl->group))
+			return (ptemp->permissions & pacl->permissions) == 0;
+		ptemp = ptemp->next;
 	}
 	return 1;
 }
 
 
 /*
- * Caller must have permissions to set acls
+ * This method updates the ACLs of a file; and if respective
+ * node does not exist, it is created.
+ *
+ * Caller must have permissions to set acls -- no check here.
  */
 static struct file *do_f_ops_acl_set(struct file **fs, char *filename,
-				     char *user, char *group, int permissions)
+				     struct acl *pacl)
 {
-	struct acl **acl;
+	struct acl **ppacl;
 	struct file *file_handle;
 
 #ifdef _DEBUG
-	printf("setting::%s,%s,%s,%d\n", filename, user, group, permissions);
+	printf("setting::%s,%s,%s,%d\n", filename, pacl->user,
+	       pacl->group, pacl->permissions);
 #endif
 	file_handle = f_ops_get_handle(*fs, filename);
 	if (!file_handle)
 		return NULL;
 
-	acl = &file_handle->acls;
+	ppacl = &file_handle->acls;
 
-	while (*acl != NULL)
-		acl = &((*acl)->next);
+	while (*ppacl != NULL)
+		ppacl = &((*ppacl)->next);
 
-	*acl = calloc(1, sizeof(struct acl));
-	if (!*acl) {
+	*ppacl = calloc(1, sizeof(struct acl));
+	if (!*ppacl) {
 		perror("calloc");
 		return NULL;
 	}
-	(*acl)->permissions = permissions;
+	(*ppacl)->permissions = pacl->permissions;
 
-	(*acl)->user = calloc(strlen(user) + 1, sizeof(char));
-	if (!(*acl)->user) {
+	(*ppacl)->user = calloc(strlen(pacl->user) + 1, sizeof(char));
+	if (!(*ppacl)->user) {
 		perror("calloc");
 		return NULL;
 	}
-	strcpy((*acl)->user, user);
+	strcpy((*ppacl)->user, pacl->user);
 
-	(*acl)->group = calloc(strlen(group) + 1, sizeof(char));
-	if (!(*acl)->group) {
+	(*ppacl)->group = calloc(strlen(pacl->group) + 1, sizeof(char));
+	if (!(*ppacl)->group) {
 		perror("calloc");
 		return NULL;
 	}
-	strcpy((*acl)->group, group);
+	strcpy((*ppacl)->group, pacl->group);
 
-	(*acl)->next = NULL;
+	(*ppacl)->next = NULL;
 
 	return file_handle;
 }
 
 
 /*
- *
+ * This method mounts (initializes) the filesystem, basically by
+ * creating /tmp and /home.
  */
 static struct file *do_f_ops_mount(struct file **fs)
 {
+	struct acl acl;
 	struct file *file_handle;
 
 	env_is_set = 0;
@@ -168,7 +191,10 @@ static struct file *do_f_ops_mount(struct file **fs)
 	file_handle->next = *fs;
 	*fs = file_handle;
 
-	if (!do_f_ops_acl_set(fs, file_handle->filename, "*", "*", READ_WRITE))
+	acl.user = "*";
+	acl.group = "*";
+	acl.permissions = READ_WRITE;
+	if (!do_f_ops_acl_set(fs, file_handle->filename, &acl))
 		return NULL;
 
 	file_handle = calloc(1, sizeof(struct file));
@@ -182,7 +208,10 @@ static struct file *do_f_ops_mount(struct file **fs)
 	file_handle->next = *fs;
 	*fs = file_handle;
 
-	if (!do_f_ops_acl_set(fs, file_handle->filename, "*", "*", READ_WRITE))
+	acl.user = "*";
+	acl.group = "*";
+	acl.permissions = READ_WRITE;
+	if (!do_f_ops_acl_set(fs, file_handle->filename, &acl))
 		return NULL;
 
 	return *fs;
@@ -190,17 +219,25 @@ static struct file *do_f_ops_mount(struct file **fs)
 
 
 /*
- * Note: force predecesors
- * .assert valid name
- * .assert parent exists
- * .check ACLs on parent
- * .assert file does not exits
+ * This method creates a file in the file system.
+ *
+ * There is handful of checks before creation of a file:
+ * - valid filename
+ * - exisiting predecessors
+ * - WRITE permision on parent
+ * - not existing file
+ *
+ * If tests succeed file structure is creates and then ACLs are
+ * set (i.e., created as will).
+ *
+ * TODO: write on all predecessors?
  */
 static struct file *do_f_ops_create(struct file **fs, char *filename,
-				    char *user, char *group)
+				    struct acl *pacl)
 {
 	int rval;
-	struct file *f;
+	struct acl acl;
+	struct file *file_handle;
 	char parent[FILENAME_LEN];
 
 	if (is_invalid_name(filename)) {
@@ -211,7 +248,10 @@ static struct file *do_f_ops_create(struct file **fs, char *filename,
 	if (rval)
 		return NULL;
 
-	rval = do_f_ops_acl_check(fs, parent, user, group, WRITE);
+	acl.user = pacl->user;
+	acl.group = pacl->group;
+	acl.permissions = pacl->permissions;
+	rval = do_f_ops_acl_check(fs, parent, &acl);
 	if (rval)
 		return NULL;
 
@@ -220,77 +260,191 @@ static struct file *do_f_ops_create(struct file **fs, char *filename,
 		return NULL;
 	}
 	/*
-	 * Done with test ;-)
+	 * Done with tests ;-)
 	 */
 
-	f = calloc(1, sizeof(struct file));
-	if (!f) {
+	file_handle = calloc(1, sizeof(struct file));
+	if (!file_handle) {
 		perror("calloc");
 		return NULL;
 	}
-	strcpy(f->filename, filename);
-	f->acls = NULL;
+	strcpy(file_handle->filename, filename);
+	file_handle->acls = NULL;
 
-	f->next = *fs;
-	*fs = f;
+	file_handle->next = *fs;
+	*fs = file_handle;
 
-	return do_f_ops_acl_set(fs, filename, user, group, READ_WRITE);
+	return do_f_ops_acl_set(fs, filename, pacl);
 }
 
 
+/*
+ * This method updates (sets) the ACLs of an existing file.
+ *
+ * Before setting the ACLs WRITE permission is asserted.
+ */
 static struct file *do_f_ops_update(struct file **fs, char *filename,
-				    char *user, char *group, int permissions)
+				    struct acl *pacl)
 {
-	if (do_f_ops_acl_check(fs, filename, user, group, WRITE))
+	if (do_f_ops_acl_check(fs, filename, pacl))
 		return NULL;
 
-	return do_f_ops_acl_set(fs, filename, user, group, permissions);
+	return do_f_ops_acl_set(fs, filename, pacl);
 }
 
 
+/*
+ * This method deletes an existing file.
+ *
+ * WRITE permission on the parent is first asserted and then
+ * ACL structs are deleted along with the file structure.
+ *
+ * TODO: prevent deletion of parent of any folder
+ */
+static struct file *do_f_ops_delete(struct file **fs, char *filename,
+				    struct acl *pacl)
+{
+	int rval;
+	struct acl acl, *temp;
+	struct file *file_handle, *prev;
+	char parent[FILENAME_LEN];
 
-struct file *f_ops_mount(struct file **fs)
+	/* During unmounting disable checks to allow easier removing */
+	if (!env_is_set)
+		goto no_checks;
+
+	rval = get_parent(filename, parent);
+	if (rval)
+		return NULL;
+	printf("getparent:%s\n", filename);
+
+	acl.user = pacl->user;
+	acl.group = pacl->group;
+	acl.permissions = WRITE;
+	rval = do_f_ops_acl_check(fs, parent, &acl);
+	if (rval)
+		return NULL;
+no_checks:
+	file_handle = f_ops_get_handle(*fs, filename);
+	if (!file_handle) {
+		fprintf(stderr, "File: \"%s\" does not exist\n", filename);
+		return NULL;
+	}
+
+	/* find previous node and shortcut current */
+	prev = *fs;
+	while (prev) {
+		if (prev->next)
+			if (!strcmp(prev->next->filename, filename))
+			    break;
+		prev = prev->next;
+
+	}
+
+	/* if no previous node found, current is at the beginning */
+	if (prev)
+		prev->next = file_handle->next;
+	else
+		*fs = file_handle->next;
+
+
+	/* free memory */
+	while (file_handle->acls) {
+		temp = file_handle->acls;
+		free(temp->user);
+		free(temp->group);
+		free(temp);
+		file_handle->acls = file_handle->acls->next;
+	}
+	free(file_handle);
+
+	return prev != NULL ? prev : *fs;
+}
+
+
+/*
+ * This method mounts (initializes) the filesystem, basically by
+ * creating /tmp and /home.
+ */
+static struct file *do_f_ops_unmount(struct file **fs)
 {
 	struct file *file_handle;
+	struct acl acl;
 
+	memset((char *)&acl, 0, sizeof(struct acl));
+	env_is_set = 0;
+
+	file_handle = *fs;
+	while (file_handle) {
+		f_ops_delete(fs, file_handle->filename, &acl);
+		file_handle = file_handle->next;
+	}
+
+	return *fs;
+}
+
+
+/*
+ * Exported interface
+ *
+ * mount: Initializes the file system (created /home and /tmp)
+ * unmount: Deallocated the structs kept in mem.
+ * create: Creates a file and adds it in the file system
+ * update: Updates the acls of a file
+ * check: Check (compares) mathing acl permissions on a file
+ * delete: Delete a file from the file system
+ */
+struct file *f_ops_mount(struct file **fs)
+{
 	DEBUG("mounting\n");
 
-	file_handle = do_f_ops_mount(fs);
-	return file_handle;
+	return do_f_ops_mount(fs);
+}
+
+
+struct file *f_ops_unmount(struct file **fs)
+{
+	DEBUG("unmounting\n");
+
+	return do_f_ops_unmount(fs);
 }
 
 
 struct file *f_ops_create(struct file **fs, char *filename,
-			    char *user, char *group)
+			  struct acl *pacl)
 {
-	struct file *file_handle;
+	DEBUG("creating::%s,%s,%s,%d\n", filename, pacl->user,
+	      pacl->group, pacl->permissions);
 
-	DEBUG("creating::%s,%s,%s\n", filename, user, group);
-
-	file_handle =  do_f_ops_create(fs, filename, user, group);
-	return file_handle;
+	return  do_f_ops_create(fs, filename, pacl);
 }
 
 
-struct file *f_ops_update(struct file **fs, char *filename, char *user,
-			    char *group, int permissions)
+struct file *f_ops_update(struct file **fs, char *filename,
+			  struct acl *pacl)
 {
-	struct file *file_handle;
+	DEBUG("updating::%s,%s,%s,%d\n", filename, pacl->user,
+	      pacl->group, pacl->permissions);
 
-	DEBUG("updating::%s,%s,%s,%d\n", filename, user,
-	       group, permissions);
-
-	file_handle = do_f_ops_update(fs, filename, user, group, permissions);
-	return file_handle;
+	return do_f_ops_update(fs, filename, pacl);
 }
 
-int f_ops_acl_check(struct file **fs, char *filename, char *user,
-		    char *group, int permissions)
+
+struct file *f_ops_delete(struct file **fs, char *filename,
+			  struct acl *pacl)
+{
+	DEBUG("deleting::%s,%s,%s,%d\n", filename, pacl->user,
+	      pacl->group, pacl->permissions);
+
+	return do_f_ops_delete(fs, filename, pacl);
+}
+
+
+int f_ops_acl_check(struct file **fs, char *filename, struct acl *pacl)
 {
 
-	DEBUG("checking::%s,%s,%s,%d\n", filename, user,
-	       group, permissions);
+	DEBUG("checking::%s,%s,%s,%d\n", filename, pacl->user,
+	      pacl->group, pacl->permissions);
 
-	return do_f_ops_acl_check(fs, filename, user, group,
-				   permissions);
+	return do_f_ops_acl_check(fs, filename, pacl);
 }
