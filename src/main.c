@@ -99,11 +99,9 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 	return -1;
 
 malformed_line:
-	fprintf(stderr, "\n");
 	fprintf(stderr, "E: Malformed line: %s", line);
 	fprintf(stderr, "E: Malformed user definition section\n");
-	fprintf(stderr, "E: Parsing aborted\n");
-	fprintf(stderr, "\n");
+	fprintf(stderr, "E: Parsing user definition section aborted\n");
 	free(line);
 	return -1;
 
@@ -130,8 +128,11 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 	struct acl acl;
 	size_t n = 12345;
 
-	line = NULL;
-	while ((len = getline(&line, &n, input_stream)) > 0) {
+	while (1) {
+		line = NULL;
+		len = getline(&line, &n, input_stream);
+		if (len == -1)
+			goto end_of_section_free_one;
 
 		linecopy = calloc(strlen(line), sizeof(char));
 		if (linecopy == NULL) {
@@ -235,19 +236,22 @@ create_loop:
 		} else {
 			printf("Not implememnted\n");
 		}
-
 		free(line);
-		line = NULL;
+		free(linecopy);
 	}
-	goto end_of_section;
-
-malformed_line:
-	fprintf(stderr, "E: Malformed operations section\n");
-	return -1;
-
 end_of_section:
+	free(linecopy);
+end_of_section_free_one:
 	free(line);
 	return 0;
+
+malformed_line:
+	fprintf(stderr, "E: Malformed line: %s", line);
+	fprintf(stderr, "E: Malformed operations section\n");
+	fprintf(stderr, "E: Parsing user definition section aborted\n");
+	free(line);
+	free(linecopy);
+	return -1;
 }
 
 
