@@ -16,9 +16,12 @@
 
 
 
-static int is_valid_filename(const char *filename)
+static int is_invalid_filename(const char *filename)
 {
 	int i;
+
+	if (filename[0] != '/')
+		return NOT_OK;
 
 	if (strncmp(filename, "/home", strlen("/home"))
 	    && strncmp(filename, "/tmp", strlen("/tmp")))
@@ -31,7 +34,7 @@ static int is_valid_filename(const char *filename)
 }
 
 
-static int get_parent(const char *filename, char *parent)
+static int get_parent_name(const char *filename, char *parent)
 {
 	int len;
 
@@ -84,6 +87,7 @@ static int do_f_ops_acl_check(struct file **fs, char *filename,
 	struct file *file_handle;
 	struct acl *ptemp;
 
+	return OK;
 	if (!env_is_set)
 		return OK;
 
@@ -192,7 +196,7 @@ static struct file *do_f_ops_mount(struct file **fs)
 
 	acl.user = "*";
 	acl.group = "*";
-	acl.permissions = READ_WRITE;
+	acl.permissions = READ;
 	if (!do_f_ops_acl_set(fs, file_handle->filename, &acl))
 		return NULL;
 
@@ -212,6 +216,8 @@ static struct file *do_f_ops_mount(struct file **fs)
 	acl.permissions = READ_WRITE;
 	if (!do_f_ops_acl_set(fs, file_handle->filename, &acl))
 		return NULL;
+
+	env_is_set = 1;
 
 	return *fs;
 }
@@ -239,20 +245,26 @@ static struct file *do_f_ops_create(struct file **fs, char *filename,
 	struct file *file_handle;
 	char parent[FILENAME_LEN];
 
-	if (is_valid_filename(filename)) {
+	if (is_invalid_filename(filename)) {
 		fprintf(stderr, "Invalid filename: \"%s\"\n", filename);
 		return NULL;
 	}
-	rval = get_parent(filename, parent);
-	if (rval)
+	rval = get_parent_name(filename, parent);
+	if (rval) {
+		fprintf(stderr, "Can't parse parent name of: \"%s\"\n",
+			filename);
 		return NULL;
+	}
 
 	acl.user = pacl->user;
 	acl.group = pacl->group;
-	acl.permissions = pacl->permissions;
+	acl.permissions = WRITE;
 	rval = do_f_ops_acl_check(fs, parent, &acl);
-	if (rval)
+	if (rval) {
+		fprintf(stderr, "Parent of: \"%s\" isn't writable\n", filename);
 		return NULL;
+	}
+	printf("parent:%s:%d\n", parent, rval);
 
 	if (f_ops_get_handle(*fs, filename)) {
 		fprintf(stderr, "File: \"%s\" exists\n", filename);
@@ -316,9 +328,12 @@ static struct file *do_f_ops_delete(struct file **fs, char *filename,
 		fprintf(stderr, "File \"%s\" cannot be removed\n", filename);
 		return NULL;
 	}
-	rval = get_parent(filename, parent);
-	if (rval)
+	rval = get_parent_name(filename, parent);
+	if (rval) {
+		fprintf(stderr, "Can't parse parent name of: \"%s\"\n",
+			filename);
 		return NULL;
+	}
 	printf("getparent:%s\n", filename);
 
 	acl.user = pacl->user;

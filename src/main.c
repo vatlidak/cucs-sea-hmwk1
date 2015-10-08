@@ -15,6 +15,18 @@
 #include "f_ops.h"
 
 
+static inline int is_invalid_line(const char *line)
+{
+	int i, spaces = 0;
+
+	for (i = 0; i < ((int)strlen(line)) - 1; i++)
+		if (line[i] == ' ')
+			spaces++;
+
+	return spaces > 1 ? NOT_OK : OK;
+}
+
+
 /*
  * parse_user_definition: parses the user definition portion of the  file
  */
@@ -35,7 +47,7 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 		/* when line is NULL: getline allocates appropriate buffer */
 		line = NULL;
 		len = getline(&line, &n, input_stream);
-		if (len == -1)
+		if (len == -1 || is_invalid_line(line))
 			goto malformed_line;
 
 		if (len == 2 && strncmp(line, ".\n", 2) == 0)
@@ -109,6 +121,7 @@ end_of_section:
 static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 {
 	int len;
+	int rval;
 	char *cmd;
 	char *line;
 	char *user;
@@ -156,20 +169,21 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 
 		if (!strcmp(cmd, "READ")) {
 			acl.permissions = READ;
-			printf("%s:%d\n", linecopy,
+			printf("%s. rval:%d\n", linecopy,
 			       -f_ops_acl_check(fs, filename, &acl));
 		} else if (!strcmp(cmd, "WRITE")) {
 			acl.permissions = WRITE;
-			printf("%s:%d\n", linecopy,
+			printf("%s. rval:%d\n", linecopy,
 			       -f_ops_acl_check(fs, filename, &acl));
 		} else if (!strcmp(cmd, "DELETE")) {
 			acl.permissions = WRITE;
-			printf("%s:%d\n", linecopy,
-			       -f_ops_acl_check(fs, filename, &acl));
-			f_ops_delete(fs, filename, &acl);
+			rval = f_ops_delete(fs, filename, &acl) ==
+				NULL ? -1:0;
+			printf("%s. rval:%d\n", linecopy, rval);
+
 		} else if (!strcmp(cmd, "ACL")) {
 			acl.permissions = WRITE;
-			printf("%s:%d\n", linecopy,
+			printf("%s. rval:%d\n", linecopy,
 			       -f_ops_acl_check(fs, filename, &acl));
 
 acl_loop:
