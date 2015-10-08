@@ -13,6 +13,16 @@
 #define READ_WRITE 3
 #define NO_PERM 0
 
+#ifdef _DEBUG
+#define DEBUG(fmt, ...) fprintf(stdout, fmt, ## __VA_ARGS__)
+#else
+#define DEBUG(fmt, ...)
+#endif
+
+#define OK 0
+#define NOT_OK -1
+
+int env_is_set;
 
 struct acl {
 	int permissions;

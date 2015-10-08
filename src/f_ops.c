@@ -14,28 +14,20 @@
 #include "parser.h"
 #include "f_ops.h"
 
-#ifdef _DEBUG
-#define DEBUG(fmt, ...) fprintf(stdout, fmt, ## __VA_ARGS__)
-#else
-#define DEBUG(fmt, ...)
-#endif
 
 
-int env_is_set;
-
-
-static int is_invalid_name(const char *filename)
+static int is_valid_filename(const char *filename)
 {
 	int i;
 
 	if (strncmp(filename, "/home", strlen("/home"))
 	    && strncmp(filename, "/tmp", strlen("/tmp")))
-		return 1;
+		return NOT_OK;
 
 	for (i = 0; i < strlen(filename) - 1; i++)
 		if (filename[i] == '/' && filename[i+1] == '/')
-			return 1;
-	return 0;
+			return NOT_OK;
+	return OK;
 }
 
 
@@ -48,12 +40,12 @@ static int get_parent(const char *filename, char *parent)
 		;
 
 	if (len == 0)
-		return -1;
+		return NOT_OK;
 
 	strncpy(parent, filename, len);
 	parent[len] = '\0';
 
-	return 0;
+	return OK;
 }
 
 
@@ -93,26 +85,33 @@ static int do_f_ops_acl_check(struct file **fs, char *filename,
 	struct acl *ptemp;
 
 	if (!env_is_set)
-		return 0;
+		return OK;
 
 	file_handle = f_ops_get_handle(*fs, filename);
 	if (!file_handle)
-		return 1;
+		return NOT_OK;
 
 	ptemp = file_handle->acls;
 	if (!ptemp)
-		return 1;
+		return NOT_OK;
 
 	while (ptemp != NULL) {
-		if (!strcmp(ptemp->user, "*") ||
-		    !strcmp(ptemp->group, "*"))
-			return (ptemp->permissions & pacl->permissions) == 0;
+		if (!strcmp(ptemp->user, "*") || !strcmp(ptemp->group, "*")) {
+			if ((ptemp->permissions & pacl->permissions) == 0)
+				return NOT_OK;
+			else
+				return OK;
+		}
 		if (!strcmp(ptemp->user, pacl->user) ||
-		    !strcmp(ptemp->group, pacl->group))
-			return (ptemp->permissions & pacl->permissions) == 0;
+		    !strcmp(ptemp->group, pacl->group)) {
+			if ((ptemp->permissions & pacl->permissions) == 0)
+				return NOT_OK;
+			else
+				return OK;
+		}
 		ptemp = ptemp->next;
 	}
-	return 1;
+	return NOT_OK;
 }
 
 
@@ -240,7 +239,7 @@ static struct file *do_f_ops_create(struct file **fs, char *filename,
 	struct file *file_handle;
 	char parent[FILENAME_LEN];
 
-	if (is_invalid_name(filename)) {
+	if (is_valid_filename(filename)) {
 		fprintf(stderr, "Invalid filename: \"%s\"\n", filename);
 		return NULL;
 	}
@@ -309,10 +308,14 @@ static struct file *do_f_ops_delete(struct file **fs, char *filename,
 	struct file *file_handle, *prev;
 	char parent[FILENAME_LEN];
 
-	/* During unmounting disable checks to allow easier removing */
+	/* During unmounting disable checks to allow removing of everything*/
 	if (!env_is_set)
 		goto no_checks;
-
+	/* Otherwise, no-one removes /home and /tmp */
+	if (!strcmp(filename, "/tmp") || !strcmp(filename, "/home")) {
+		fprintf(stderr, "File \"%s\" cannot be removed\n", filename);
+		return NULL;
+	}
 	rval = get_parent(filename, parent);
 	if (rval)
 		return NULL;

@@ -14,15 +14,6 @@
 #include "parser.h"
 #include "f_ops.h"
 
-#ifdef _DEBUG
-#define DEBUG(fmt, ...) fprintf(stdout, fmt, ## __VA_ARGS__)
-#else
-#define DEBUG(fmt, ...)
-#endif
-
-
-int env_is_set;
-
 
 /*
  * parse_user_definition: parses the user definition portion of the  file
@@ -96,19 +87,19 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 	}
 	fprintf(stderr, "E: Parsing user definition section aborted\n");
 	free(line);
-	return -1;
+	return NOT_OK;
 
 malformed_line:
 	fprintf(stderr, "E: Malformed line: %s", line);
 	fprintf(stderr, "E: Malformed user definition section\n");
 	fprintf(stderr, "E: Parsing user definition section aborted\n");
 	free(line);
-	return -1;
+	return NOT_OK;
 
 end_of_section:
-	free(line);
 	env_is_set = 1;
-	return 0;
+	free(line);
+	return OK;
 }
 
 
@@ -243,7 +234,7 @@ end_of_section:
 	free(linecopy);
 end_of_section_free_one:
 	free(line);
-	return 0;
+	return OK;
 
 malformed_line:
 	fprintf(stderr, "E: Malformed line: %s", line);
@@ -251,7 +242,7 @@ malformed_line:
 	fprintf(stderr, "E: Parsing user definition section aborted\n");
 	free(line);
 	free(linecopy);
-	return -1;
+	return NOT_OK;
 }
 
 
@@ -295,8 +286,8 @@ int main(int argc, char **argv)
 #ifdef _DEBUG
 	ls(FS);
 #endif
-	return 0;
+	return OK;
 abort:
 	fprintf(stderr, "Simulation aborted\n");
-	return -1;
+	return NOT_OK;
 }
