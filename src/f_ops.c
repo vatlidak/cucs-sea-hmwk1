@@ -51,7 +51,6 @@ static int is_invalid_filename(const char *filename)
 	return OK;
 }
 
-/* TODO: use c function */
 static int get_parent_name(const char *filename, char *parent)
 {
 	int len;
@@ -351,7 +350,6 @@ error:
  * WRITE permission on the parent is first asserted and then
  * ACL structs are deleted along with the file structure.
  *
- * TODO: prevent deletion of parent of any folder
  */
 static struct file *do_f_ops_delete(struct file **fs, char *filename,
 				    struct acl *pacl)
@@ -383,7 +381,9 @@ static struct file *do_f_ops_delete(struct file **fs, char *filename,
 	acl.permissions = WRITE;
 	rval = f_ops_acl_check(fs, parent, &acl);
 	if (rval) {
-		/* TODO: MEssage here */
+		fprintf(stderr,
+			"Parent of: \"%s\" isn't writable from user: \"%s\"\n",
+			filename, acl.user);
 		goto error;
 	}
 
