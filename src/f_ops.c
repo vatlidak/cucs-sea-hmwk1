@@ -16,7 +16,6 @@
 #include "f_ops.h"
 
 
-
 static int is_invalid_filename(const char *filename)
 {
 	int i;
@@ -48,23 +47,6 @@ static int is_invalid_filename(const char *filename)
 	for (i = 0; i < (int)strlen(filename) - 1; i++)
 		if (filename[i] == '/' && filename[i+1] == '/')
 			return NOT_OK;
-	return OK;
-}
-
-static int get_parent_name(const char *filename, char *parent)
-{
-	int len;
-
-	len = (int)strlen(filename);
-	for (; len > 0 && filename[len] != '/'; len--)
-		;
-
-	if (len == 0)
-		return NOT_OK;
-
-	strncpy(parent, filename, len);
-	parent[len] = '\0';
-
 	return OK;
 }
 
@@ -101,10 +83,12 @@ static inline struct file *f_ops_get_handle_prev(struct file *fs,
 static int do_f_ops_acl_check(struct file **fs, char *filename,
 			      struct acl *pacl)
 {
+	char *parent, *dup;
 	struct file *file_handle;
 	struct acl *ptemp;
+	struct acl acl;
 
-	return OK;
+/*	return OK; */
 	file_handle = f_ops_get_handle(*fs, filename);
 	if (!file_handle)
 		return NOT_OK;
@@ -112,6 +96,29 @@ static int do_f_ops_acl_check(struct file **fs, char *filename,
 	ptemp = file_handle->acls;
 	if (!ptemp)
 		return NOT_OK;
+
+
+	/* recursively check READ permissions on all predecessors */
+	dup = strdup(filename);
+	parent = dirname(dup);
+	if (!strncmp(parent, "/", strlen(parent)))
+		goto no_predecessors_end_recursion;
+	if (*parent == '.') {
+		fprintf(stderr, "Can't parse parent of: \"%s\"\n", filename);
+		free(dup);
+		return NOT_OK;
+	}
+	acl.user = pacl->user;
+	acl.group = pacl->group;
+	acl.permissions = READ;
+	if (f_ops_acl_check(fs, parent, &acl)) {
+		fprintf(stderr, "Parent of: \"%s\" not READable\n", filename);
+		free(dup);
+		return NOT_OK;
+	} else
+		fprintf(stderr, "Parent of: \"%s\" is READable\n", filename);
+no_predecessors_end_recursion:
+	free(dup);
 
 	while (ptemp != NULL) {
 		if (!strcmp(ptemp->user, "*") || !strcmp(ptemp->group, "*")) {
@@ -277,7 +284,6 @@ static struct file *do_f_ops_unmount(struct file **fs)
  * If tests succeed file structure is creates and then ACLs are
  * set (i.e., created as will).
  *
- * TODO: write on all predecessors?
  */
 static struct file *do_f_ops_create(struct file **fs, char *filename,
 				    struct acl *pacl)
@@ -291,8 +297,7 @@ static struct file *do_f_ops_create(struct file **fs, char *filename,
 	dup = strdup(filename);
 	parent = dirname(dup);
 	if (*parent == '.') {
-		fprintf(stderr, "Can't parse parent name of: \"%s\"\n",
-			filename);
+		fprintf(stderr, "Can't parse parent of: \"%s\"\n", filename);
 		goto error;
 	}
 	if (is_invalid_filename(filename)) {
@@ -303,6 +308,7 @@ static struct file *do_f_ops_create(struct file **fs, char *filename,
 	acl.user = pacl->user;
 	acl.group = pacl->group;
 	bname = basename(filename);
+	/* TODO: decide this one */
 	if (!strncmp(bname, pacl->user, strlen(pacl->user)))
 		acl.permissions = READ;
 	else
@@ -362,8 +368,7 @@ static struct file *do_f_ops_delete(struct file **fs, char *filename,
 	dup = strdup(filename);
 	parent = dirname(dup);
 	if (*parent == '.') {
-		fprintf(stderr, "Can't parse parent name of: \"%s\"\n",
-			filename);
+		fprintf(stderr, "Can't parse parent of: \"%s\"\n", filename);
 		goto error;
 	}
 
@@ -444,9 +449,9 @@ error:
 static struct file *do_f_ops_update(struct file **fs, char *filename,
 				    struct acl *pacl)
 {
-	if (do_f_ops_acl_check(fs, filename, pacl))
+/*	if (do_f_ops_acl_check(fs, filename, pacl))
 		return NULL;
-
+*/
 	return do_f_ops_acl_set(fs, filename, pacl);
 }
 
