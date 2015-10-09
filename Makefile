@@ -14,8 +14,11 @@ all: $(OBJECTS)
 %.o: src/%.c
 	@$(CC) $(CFLAGS) -c $^
 
-check:
+checkpatch:
 	scripts/checkpatch.pl --no-tree -f src/*
+
+valgrid:
+	/usr/bin/valgrind -v --input-fd=3 < ./tests/test1.txt ./$(EXECUTABLE)
 
 clean:
 	rm -f $(EXECUTABLE)

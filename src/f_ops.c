@@ -27,7 +27,7 @@ static int is_invalid_filename(const char *filename)
 	    && strncmp(filename, "/tmp", strlen("/tmp")))
 		return NOT_OK;
 
-	for (i = 0; i < strlen(filename) - 1; i++)
+	for (i = 0; i < (int)strlen(filename) - 1; i++)
 		if (filename[i] == '/' && filename[i+1] == '/')
 			return NOT_OK;
 	return OK;
@@ -38,7 +38,7 @@ static int get_parent_name(const char *filename, char *parent)
 {
 	int len;
 
-	len = strlen(filename);
+	len = (int)strlen(filename);
 	for (; len > 0 && filename[len] != '/'; len--)
 		;
 
@@ -131,10 +131,9 @@ static struct file *do_f_ops_acl_set(struct file **fs, char *filename,
 	struct acl **ppacl;
 	struct file *file_handle;
 
-#ifdef _DEBUG
-	printf("setting::%s,%s,%s,%d\n", filename, pacl->user,
-	       pacl->group, pacl->permissions);
-#endif
+	DEBUG("setting::%s,%s,%s,%d\n", filename, pacl->user, pacl->group,
+	      pacl->permissions);
+
 	file_handle = f_ops_get_handle(*fs, filename);
 	if (!file_handle)
 		return NULL;
@@ -264,7 +263,6 @@ static struct file *do_f_ops_create(struct file **fs, char *filename,
 		fprintf(stderr, "Parent of: \"%s\" isn't writable\n", filename);
 		return NULL;
 	}
-	printf("parent:%s:%d\n", parent, rval);
 
 	if (f_ops_get_handle(*fs, filename)) {
 		fprintf(stderr, "File: \"%s\" exists\n", filename);
@@ -323,18 +321,19 @@ static struct file *do_f_ops_delete(struct file **fs, char *filename,
 	/* During unmounting disable checks to allow removing of everything*/
 	if (!env_is_set)
 		goto no_checks;
+
 	/* Otherwise, no-one removes /home and /tmp */
 	if (!strcmp(filename, "/tmp") || !strcmp(filename, "/home")) {
 		fprintf(stderr, "File \"%s\" cannot be removed\n", filename);
 		return NULL;
 	}
+
 	rval = get_parent_name(filename, parent);
 	if (rval) {
 		fprintf(stderr, "Can't parse parent name of: \"%s\"\n",
 			filename);
 		return NULL;
 	}
-	printf("getparent:%s\n", filename);
 
 	acl.user = pacl->user;
 	acl.group = pacl->group;
@@ -343,6 +342,7 @@ static struct file *do_f_ops_delete(struct file **fs, char *filename,
 	if (rval)
 		return NULL;
 no_checks:
+
 	file_handle = f_ops_get_handle(*fs, filename);
 	if (!file_handle) {
 		fprintf(stderr, "File: \"%s\" does not exist\n", filename);
@@ -369,11 +369,12 @@ no_checks:
 	/* free memory */
 	while (file_handle->acls) {
 		temp = file_handle->acls;
+		file_handle->acls = file_handle->acls->next;
 		free(temp->user);
 		free(temp->group);
 		free(temp);
-		file_handle->acls = file_handle->acls->next;
 	}
+
 	free(file_handle);
 
 	return prev != NULL ? prev : *fs;
@@ -386,7 +387,7 @@ no_checks:
  */
 static struct file *do_f_ops_unmount(struct file **fs)
 {
-	struct file *file_handle;
+	struct file *file_handle, *temp;
 	struct acl acl;
 
 	memset((char *)&acl, 0, sizeof(struct acl));
@@ -394,8 +395,9 @@ static struct file *do_f_ops_unmount(struct file **fs)
 
 	file_handle = *fs;
 	while (file_handle) {
+		temp = file_handle->next;
 		f_ops_delete(fs, file_handle->filename, &acl);
-		file_handle = file_handle->next;
+		file_handle = temp;
 	}
 
 	return *fs;

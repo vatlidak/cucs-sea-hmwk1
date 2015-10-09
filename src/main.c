@@ -33,25 +33,40 @@ static inline int is_invalid_line(const char *line)
 static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 {
 	int len;
+	int nline;
+
 	char *line;
 	char *user;
 	char *group;
 	char *filename;
+	char *linecopy;
 
 	size_t n = 12345;
 
 	struct file *file_handle;
 	struct acl acl;
 
+	nline = 0;
 	while (1) {
 		/* when line is NULL: getline allocates appropriate buffer */
 		line = NULL;
 		len = getline(&line, &n, input_stream);
-		if (len == -1 || is_invalid_line(line))
-			goto malformed_line;
+		if (len == -1)
+			goto end_of_section;
 
 		if (len == 2 && strncmp(line, ".\n", 2) == 0)
 			goto end_of_section;
+
+		linecopy = calloc(strlen(line) + 1, sizeof(char));
+		if (linecopy == NULL) {
+			perror("calloc");
+			goto end_of_section;
+		}
+		strncpy(linecopy, line, strlen(line));
+		nline++;
+
+		if (is_invalid_line(line))
+			goto malformed_line;
 
 		len = get_user(line, &user, ".\n ");
 		if (len < 0)
@@ -62,7 +77,7 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 			goto malformed_line;
 
 		len = get_filename(NULL, &filename, "\n ");
-		if (len < 0 || strlen(filename) > FILENAME_LEN)
+		if (len < 0 || len > FILENAME_LEN)
 			goto malformed_line;
 
 		acl.user = user;
@@ -78,40 +93,39 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 		 */
 		if (len > 0) {
 			file_handle = f_ops_create(fs, filename, &acl);
-			if (!file_handle) {
-				fprintf(stderr,
-					"E: Failed to create <%s> <%s.%s>\n",
-					filename, user, group);
-				break;
-			}
+			if (file_handle)
+				printf("%d\tY\tNo Error\n", nline);
+			else
+				printf("%d\tX\tError: "
+				       "Failed to create: \"%s\"\n",
+				       nline, filename);
 		} else {
 			file_handle = f_ops_update(fs,
 						   file_handle->filename,
 						   &acl);
-			if (!file_handle) {
-				fprintf(stderr,
-					"E: Failed to update <%s> <%s.%s>\n",
-					filename, acl.user, acl.group);
-				break;
-			}
+			if (file_handle)
+				printf("%d\tY\tNo Error\n", nline);
+			else
+				printf("%d\tX\tError: "
+				       "Failed to update ACLs of: \"%s\"\n",
+				       nline, file_handle->filename);
 		}
 		free(line);
+		free(linecopy);
 	}
-	fprintf(stderr, "E: Parsing user definition section aborted\n");
+
+end_of_section:
 	free(line);
-	return NOT_OK;
+	return OK;
 
 malformed_line:
 	fprintf(stderr, "E: Malformed line: %s", line);
 	fprintf(stderr, "E: Malformed user definition section\n");
 	fprintf(stderr, "E: Parsing user definition section aborted\n");
 	free(line);
+	free(linecopy);
 	return NOT_OK;
 
-end_of_section:
-	env_is_set = 1;
-	free(line);
-	return OK;
 }
 
 
@@ -136,15 +150,14 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 		line = NULL;
 		len = getline(&line, &n, input_stream);
 		if (len == -1)
-			goto end_of_section_free_one;
+			goto end_of_section;
 
-		linecopy = calloc(strlen(line), sizeof(char));
+		linecopy = calloc(strlen(line) + 1, sizeof(char));
 		if (linecopy == NULL) {
 			perror("calloc");
 			goto end_of_section;
 		}
-		strcpy(linecopy, line);
-		linecopy[strlen(line)-1] = '\0';
+		strncpy(linecopy, line, strlen(line));
 
 		len = get_cmd(line, &cmd, "\n ");
 		if (len < 0)
@@ -159,7 +172,7 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 			goto malformed_line;
 
 		len = get_filename(NULL, &filename, "\n");
-		if (len < 0 || strlen(filename) > FILENAME_LEN)
+		if (len < 0 || len > FILENAME_LEN)
 			goto malformed_line;
 
 		acl.user = user;
@@ -245,15 +258,13 @@ create_loop:
 		free(linecopy);
 	}
 end_of_section:
-	free(linecopy);
-end_of_section_free_one:
 	free(line);
 	return OK;
 
 malformed_line:
 	fprintf(stderr, "E: Malformed line: %s", line);
 	fprintf(stderr, "E: Malformed operations section\n");
-	fprintf(stderr, "E: Parsing user definition section aborted\n");
+	fprintf(stderr, "E: Parsing operation section aborted\n");
 	free(line);
 	free(linecopy);
 	return NOT_OK;
@@ -263,18 +274,19 @@ malformed_line:
 #ifdef _DEBUG
 void ls(struct file *fs)
 {
-	printf("-------\n");
+	fprintf(stderr, "-------\n");
 	while (fs != NULL) {
 		struct acl *temp = fs->acls;
 
 		while (temp != NULL) {
-			 printf("%s:%s.%s,%d\n", fs->filename, temp->user,
-				temp->group, temp->permissions);
+			 fprintf(stderr, "%s:%s.%s,%d\n",
+				 fs->filename, temp->user,
+				 temp->group, temp->permissions);
 			 temp = temp->next;
 		}
 		fs = fs->next;
 	}
-	printf("-------\n");
+	fprintf(stderr, "-------\n");
 }
 #endif
 

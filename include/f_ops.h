@@ -14,7 +14,7 @@
 #define NO_PERM 0
 
 #ifdef _DEBUG
-#define DEBUG(fmt, ...) fprintf(stdout, fmt, ## __VA_ARGS__)
+#define DEBUG(fmt, ...) fprintf(stderr, fmt, ## __VA_ARGS__)
 #else
 #define DEBUG(fmt, ...)
 #endif

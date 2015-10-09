@@ -19,14 +19,29 @@ Spaces at the beginning of file names are stripped, if more than one.
 
 Attempting to create a file that already exists, produces an error.
 
-An error caused by a line in the user definition section aborts further parsing.
+Parsing is completely aborted upon errors caused by malformed lines.
 
-Deleting /tmp and /home is prohibited; unless done from unmount method
 
 ## Questions
--what happens if I recreate the file that exists in another line?
-
+-What happens if user.group is recreated in another line for the same file?
+-For sure I do delete, create stuff, right?
 
 ## TODO
-free allocated spaces
-
+-Review ACL tests
+-ACL when no home folder for users should fail
+-Cannot create ACL for user without home folder: This expains why I need
+seperate lines for evaluasting "uesr.group" commandsd of user definition section
+-Cannot delete parent folders with kids on top.
+-home is not writable -  user should be able to create home folder
+check ACLs on all previous components every time and assert READ?
+-COMMAND SECTION ONLY: Inherits ACLs from parents when creted with NULL ACLs
+-COMMAND SECTION ONLY: ACLs command overwrites the ACLs.
+-Valgrid test
+-Print errors commands section
+-Implement COMMANDS:
+.READ
+.WRITE
+.ACL
+.CREATE
+.DELETE
+-we at least need some orerations section
