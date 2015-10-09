@@ -20,8 +20,23 @@
 static int is_invalid_filename(const char *filename)
 {
 	int i;
+	char *dup, *token;
 
-	/* TODO: check components length */
+	/* assert component length */
+	dup = strdup(filename);
+	token = strtok(dup, "/");
+	if (strlen(token) > COMPONENT_LEN) {
+		free(dup);
+		return NOT_OK;
+	}
+	while ((token = strtok(NULL, "/")) != NULL)
+		if (strlen(token) > COMPONENT_LEN) {
+			free(dup);
+			return NOT_OK;
+		}
+	free(dup);
+
+	/* assert proper prefix of filename */
 	if (filename[0] != '/')
 		return NOT_OK;
 
@@ -29,6 +44,7 @@ static int is_invalid_filename(const char *filename)
 	    && strncmp(filename, "/tmp", strlen("/tmp")))
 		return NOT_OK;
 
+	/* assert not more than one consecutive '/' */
 	for (i = 0; i < (int)strlen(filename) - 1; i++)
 		if (filename[i] == '/' && filename[i+1] == '/')
 			return NOT_OK;
