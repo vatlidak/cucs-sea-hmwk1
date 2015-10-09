@@ -189,7 +189,9 @@ static struct file *do_f_ops_mount(struct file **fs)
 	}
 	strcpy(file_handle->filename, "/home");
 	file_handle->acls = NULL;
-
+	file_handle->parent = NULL;
+	file_handle->children = 0;
+	
 	file_handle->next = *fs;
 	*fs = file_handle;
 
@@ -206,6 +208,8 @@ static struct file *do_f_ops_mount(struct file **fs)
 	}
 	strcpy(file_handle->filename, "/tmp");
 	file_handle->acls = NULL;
+	file_handle->parent = NULL;
+	file_handle->children = 0;
 
 	file_handle->next = *fs;
 	*fs = file_handle;
@@ -279,7 +283,9 @@ static struct file *do_f_ops_create(struct file **fs, char *filename,
 	}
 	strcpy(file_handle->filename, filename);
 	file_handle->acls = NULL;
-
+	file_handle->children = 0;
+	file_handle->parent = f_ops_get_handle(*fs, parent);
+	file_handle->parent->children++;
 	file_handle->next = *fs;
 	*fs = file_handle;
 
@@ -349,6 +355,12 @@ no_checks:
 		return NULL;
 	}
 
+	if (file_handle->children)  {
+		fprintf(stderr, "File: \"%s\" haschildren\n", filename);
+		return NULL;
+	}
+
+
 	/* find previous node and shortcut current */
 	prev = *fs;
 	while (prev) {
@@ -365,6 +377,10 @@ no_checks:
 	else
 		*fs = file_handle->next;
 
+
+	/*TODO: REMOVE THIS GETTER */
+	if(file_handle->parent)
+		file_handle->parent->children--;
 
 	/* free memory */
 	while (file_handle->acls) {
@@ -395,9 +411,11 @@ static struct file *do_f_ops_unmount(struct file **fs)
 
 	file_handle = *fs;
 	while (file_handle) {
+
 		temp = file_handle->next;
 		f_ops_delete(fs, file_handle->filename, &acl);
 		file_handle = temp;
+
 	}
 
 	return *fs;

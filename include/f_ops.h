@@ -35,7 +35,9 @@ struct acl {
 struct file {
 	struct acl  *acls;
 	char filename[FILENAME_LEN];
+	int children;
 	struct file *next;
+	struct file *parent;
 };
 
 struct file *f_ops_mount(struct file **fs);
