@@ -57,12 +57,11 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 		if (len == 2 && strncmp(line, ".\n", 2) == 0)
 			goto end_of_section;
 
-		linecopy = calloc(strlen(line) + 1, sizeof(char));
+		linecopy = strdup(line);
 		if (linecopy == NULL) {
 			perror("calloc");
 			goto end_of_section;
 		}
-		strncpy(linecopy, line, strlen(line));
 		linecopy[strlen(line)-1] = '\0';
 		nlines++;
 
@@ -101,9 +100,9 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 			acl.permissions = READ;
 			file_handle = f_ops_update(fs, filename, &acl);
 			if (file_handle)
-				printf("%d\tY\tNo Error\n", nlines);
+				printf("%d\tY\tOK\n", nlines);
 			else
-				printf("%d\tX\tError: "
+				printf("%d\tX\tE: "
 				       "Failed to create: \"%s\"\n",
 				       nlines, filename);
 		} else if (!len && file_handle) {
@@ -111,9 +110,9 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 						   file_handle->filename,
 						   &acl);
 			if (file_handle)
-				printf("%d\tY\tNo Error\n", nlines);
+				printf("%d\tY\tOK\n", nlines);
 			else
-				printf("%d\tX\tError: "
+				printf("%d\tX\tE: "
 				       "Failed to update ACLs of: \"%s\"\n",
 				       nlines, file_handle->filename);
 		}
@@ -164,12 +163,11 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 		if (len == -1)
 			goto end_of_section;
 
-		linecopy = calloc(strlen(line) + 1, sizeof(char));
+		linecopy = strdup(line);
 		if (linecopy == NULL) {
 			perror("calloc");
 			goto end_of_section;
 		}
-		strncpy(linecopy, line, strlen(line));
 		linecopy[strlen(line)-1] = '\0';
 		ncmds++;
 
@@ -210,8 +208,11 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 				printf("%d\tY\t%s\n", ncmds, linecopy);
 		} else if (!strcmp(cmd, "DELETE")) {
 			acl.permissions = WRITE;
-			rval = f_ops_acl_check(fs, filename, &acl);
-			if (rval)
+			if (f_ops_delete(fs, filename, &acl))
+				rval = OK;
+			else
+				rval = NOT_OK;
+			if (rval != OK)
 				printf("%d\tN\t%s\n", ncmds, linecopy);
 			else
 				printf("%d\tY\t%s\n", ncmds, linecopy);
@@ -321,20 +322,20 @@ int main(int argc, char **argv)
 	rval = parse_user_definition_portion(&FS, stdin);
 	if (rval)
 		goto abort;
-//#ifdef _DEBUG
-//	ls(FS);
-//#endif
-//	rval = parse_file_operation_portion(&FS, stdin);
-//	if (rval)
-//		goto abort;
-//#ifdef _DEBUG
-//	ls(FS);
-//#endif
-//	f_ops_unmount(&FS);
-//#ifdef _DEBUG
-//	ls(FS);
-//#endif
-//	return OK;
+#ifdef _DEBUG
+	ls(FS);
+#endif
+	rval = parse_file_operation_portion(&FS, stdin);
+	if (rval)
+		goto abort;
+#ifdef _DEBUG
+	ls(FS);
+#endif
+	f_ops_unmount(&FS);
+#ifdef _DEBUG
+	ls(FS);
+#endif
+	return OK;
 abort:
 	fprintf(stderr, "Simulation aborted\n");
 	return NOT_OK;

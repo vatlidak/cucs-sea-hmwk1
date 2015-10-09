@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <libgen.h>
 
 #include "parser.h"
 #include "f_ops.h"
@@ -34,7 +35,7 @@ static int is_invalid_filename(const char *filename)
 	return OK;
 }
 
-
+/* TODO: use c function */
 static int get_parent_name(const char *filename, char *parent)
 {
 	int len;
@@ -88,6 +89,7 @@ static int do_f_ops_acl_check(struct file **fs, char *filename,
 	struct file *file_handle;
 	struct acl *ptemp;
 
+	return OK;
 	file_handle = f_ops_get_handle(*fs, filename);
 	if (!file_handle)
 		return NOT_OK;
@@ -188,7 +190,7 @@ static struct file *do_f_ops_mount(struct file **fs)
 	file_handle->acls = NULL;
 	file_handle->parent = NULL;
 	file_handle->children = 0;
-	
+
 	file_handle->next = *fs;
 	*fs = file_handle;
 
@@ -224,182 +226,6 @@ static struct file *do_f_ops_mount(struct file **fs)
 
 
 /*
- * This method creates a file in the file system.
- *
- * There is handful of checks before creation of a file:
- * - valid filename
- * - exisiting predecessors
- * - WRITE permision on parent
- * - not existing file
- *
- * If tests succeed file structure is creates and then ACLs are
- * set (i.e., created as will).
- *
- * TODO: write on all predecessors?
- */
-static struct file *do_f_ops_create(struct file **fs, char *filename,
-				    struct acl *pacl)
-{
-	int rval;
-	struct acl acl;
-	struct file *file_handle;
-	char parent[FILENAME_LEN];
-
-	if (is_invalid_filename(filename)) {
-		fprintf(stderr, "Invalid filename: \"%s\"\n", filename);
-		return NULL;
-	}
-	rval = get_parent_name(filename, parent);
-	if (rval) {
-		fprintf(stderr, "Can't parse parent name of: \"%s\"\n",
-			filename);
-		return NULL;
-	}
-
-	acl.user = pacl->user;
-	acl.group = pacl->group;
-	printf("<%s> - <%s>:%d\n", filename+6, pacl->user,
-	       strncmp(filename+6, pacl->user, strlen(pacl->user)));
-	if (!strncmp(filename+6, pacl->user, strlen(pacl->user)))
-		acl.permissions = READ;
-	else
-		acl.permissions = WRITE;
-	rval = do_f_ops_acl_check(fs, parent, &acl);
-	if (rval) {
-		fprintf(stderr, "Parent of: \"%s\" isn't writable\n", filename);
-		return NULL;
-	}
-
-	if (f_ops_get_handle(*fs, filename)) {
-		fprintf(stderr, "File: \"%s\" exists\n", filename);
-		return NULL;
-	}
-	/*
-	 * Done with tests ;-)
-	 */
-
-	file_handle = calloc(1, sizeof(struct file));
-	if (!file_handle) {
-		perror("calloc");
-		return NULL;
-	}
-	strcpy(file_handle->filename, filename);
-	file_handle->acls = NULL;
-	file_handle->children = 0;
-	file_handle->parent = f_ops_get_handle(*fs, parent);
-	file_handle->parent->children++;
-	file_handle->next = *fs;
-	*fs = file_handle;
-
-	return do_f_ops_acl_set(fs, filename, pacl);
-}
-
-
-/*
- * This method updates (sets) the ACLs of an existing file.
- *
- * Before setting the ACLs WRITE permission is asserted.
- */
-static struct file *do_f_ops_update(struct file **fs, char *filename,
-				    struct acl *pacl)
-{
-	if (do_f_ops_acl_check(fs, filename, pacl))
-		return NULL;
-
-	return do_f_ops_acl_set(fs, filename, pacl);
-}
-
-
-/*
- * This method deletes an existing file.
- *
- * WRITE permission on the parent is first asserted and then
- * ACL structs are deleted along with the file structure.
- *
- * TODO: prevent deletion of parent of any folder
- */
-static struct file *do_f_ops_delete(struct file **fs, char *filename,
-				    struct acl *pacl)
-{
-	int rval;
-	struct acl acl, *temp;
-	struct file *file_handle, *prev;
-	char parent[FILENAME_LEN];
-
-	/* During unmounting disable checks to allow removing of everything*/
-	if (!env_is_set)
-		goto no_checks;
-
-	/* Otherwise, no-one removes /home and /tmp */
-	if (!strcmp(filename, "/tmp") || !strcmp(filename, "/home")) {
-		fprintf(stderr, "File \"%s\" cannot be removed\n", filename);
-		return NULL;
-	}
-
-	rval = get_parent_name(filename, parent);
-	if (rval) {
-		fprintf(stderr, "Can't parse parent name of: \"%s\"\n",
-			filename);
-		return NULL;
-	}
-
-	acl.user = pacl->user;
-	acl.group = pacl->group;
-	acl.permissions = WRITE;
-	rval = do_f_ops_acl_check(fs, parent, &acl);
-	if (rval)
-		return NULL;
-no_checks:
-
-	file_handle = f_ops_get_handle(*fs, filename);
-	if (!file_handle) {
-		fprintf(stderr, "File: \"%s\" does not exist\n", filename);
-		return NULL;
-	}
-
-	if (file_handle->children)  {
-		fprintf(stderr, "File: \"%s\" haschildren\n", filename);
-		return NULL;
-	}
-
-
-	/* find previous node and shortcut current */
-	prev = *fs;
-	while (prev) {
-		if (prev->next)
-			if (!strcmp(prev->next->filename, filename))
-			    break;
-		prev = prev->next;
-
-	}
-
-	/* if no previous node found, current is at the beginning */
-	if (prev)
-		prev->next = file_handle->next;
-	else
-		*fs = file_handle->next;
-
-
-	/*TODO: REMOVE THIS GETTER */
-	if(file_handle->parent)
-		file_handle->parent->children--;
-
-	/* free memory */
-	while (file_handle->acls) {
-		temp = file_handle->acls;
-		file_handle->acls = file_handle->acls->next;
-		free(temp->user);
-		free(temp->group);
-		free(temp);
-	}
-
-	free(file_handle);
-
-	return prev != NULL ? prev : *fs;
-}
-
-
-/*
  * This method mounts (initializes) the filesystem, basically by
  * creating /tmp and /home.
  */
@@ -421,6 +247,191 @@ static struct file *do_f_ops_unmount(struct file **fs)
 	}
 
 	return *fs;
+}
+
+
+/*
+ * This method creates a file in the file system.
+ *
+ * There is handful of checks before creation of a file:
+ * - valid filename
+ * - exisiting predecessors
+ * - WRITE permision on parent
+ * - not existing file
+ *
+ * If tests succeed file structure is creates and then ACLs are
+ * set (i.e., created as will).
+ *
+ * TODO: write on all predecessors?
+ */
+static struct file *do_f_ops_create(struct file **fs, char *filename,
+				    struct acl *pacl)
+{
+	int rval;
+	char *bname;
+	char *parent, *dup;
+	struct acl acl;
+	struct file *file_handle;
+
+	dup = strdup(filename);
+	parent = dirname(dup);
+	if (*parent == '.') {
+		fprintf(stderr, "Can't parse parent name of: \"%s\"\n",
+			filename);
+		goto error;
+	}
+	if (is_invalid_filename(filename)) {
+		fprintf(stderr, "Invalid filename: \"%s\"\n", filename);
+		goto error;
+	}
+
+	acl.user = pacl->user;
+	acl.group = pacl->group;
+	bname = basename(filename);
+	if (!strncmp(bname, pacl->user, strlen(pacl->user)))
+		acl.permissions = READ;
+	else
+		acl.permissions = WRITE;
+	rval = f_ops_acl_check(fs, parent, &acl);
+	if (rval) {
+		fprintf(stderr,
+			"Parent of: \"%s\" isn't writable from user: \"%s\"\n",
+			filename, acl.user);
+		goto error;
+	}
+
+	if (f_ops_get_handle(*fs, filename)) {
+		fprintf(stderr, "File: \"%s\" exists\n", filename);
+		goto error;
+	}
+	/*
+	 * Done with tests ;-)
+	 */
+
+	file_handle = calloc(1, sizeof(struct file));
+	if (!file_handle) {
+		perror("calloc");
+		goto error;
+	}
+	strcpy(file_handle->filename, filename);
+	file_handle->acls = NULL;
+	file_handle->children = 0;
+	file_handle->parent = f_ops_get_handle(*fs, parent);
+	file_handle->parent->children++;
+	file_handle->next = *fs;
+	*fs = file_handle;
+	free(dup);
+
+	return do_f_ops_acl_set(fs, filename, pacl);
+error:
+	free(dup);
+	return NULL;
+}
+
+
+/*
+ * This method deletes an existing file.
+ *
+ * WRITE permission on the parent is first asserted and then
+ * ACL structs are deleted along with the file structure.
+ *
+ * TODO: prevent deletion of parent of any folder
+ */
+static struct file *do_f_ops_delete(struct file **fs, char *filename,
+				    struct acl *pacl)
+{
+	int rval;
+	struct acl acl, *temp;
+	struct file *file_handle, *prev;
+	char *parent, *dup;
+
+	dup = strdup(filename);
+	parent = dirname(dup);
+	if (*parent == '.') {
+		fprintf(stderr, "Can't parse parent name of: \"%s\"\n",
+			filename);
+		goto error;
+	}
+
+	/* During unmounting disable checks to allow removing of everything*/
+	if (!env_is_set)
+		goto no_checks;
+
+	/* Otherwise, no-one removes /home and /tmp */
+	if (!strcmp(filename, "/tmp") || !strcmp(filename, "/home")) {
+		fprintf(stderr, "File \"%s\" cannot be removed\n", filename);
+		goto error;
+	}
+	acl.user = pacl->user;
+	acl.group = pacl->group;
+	acl.permissions = WRITE;
+	rval = f_ops_acl_check(fs, parent, &acl);
+	if (rval) {
+		/* TODO: MEssage here */
+		goto error;
+	}
+
+no_checks:
+	file_handle = f_ops_get_handle(*fs, filename);
+	if (!file_handle) {
+		fprintf(stderr, "File: \"%s\" does not exist\n", filename);
+		goto error;
+	}
+
+	if (file_handle->children)  {
+		fprintf(stderr, "File: \"%s\" has children\n", filename);
+		goto error;
+	}
+
+
+	/* find previous node and shortcut current */
+	prev = *fs;
+	while (prev) {
+		if (prev->next)
+			if (!strcmp(prev->next->filename, filename))
+				break;
+		prev = prev->next;
+
+	}
+
+	/* if no previous node found, current is at the beginning */
+	if (prev)
+		prev->next = file_handle->next;
+	else
+		*fs = file_handle->next;
+
+	if (file_handle->parent)
+		file_handle->parent->children--;
+
+	/* free memory */
+	while (file_handle->acls) {
+		temp = file_handle->acls;
+		file_handle->acls = file_handle->acls->next;
+		free(temp->user);
+		free(temp->group);
+		free(temp);
+	}
+	free(file_handle);
+	free(dup);
+	return prev != NULL ? prev : *fs;
+error:
+	free(dup);
+	return NULL;
+}
+
+
+/*
+ * This method updates (sets) the ACLs of an existing file.
+ *
+ * Before setting the ACLs WRITE permission is asserted.
+ */
+static struct file *do_f_ops_update(struct file **fs, char *filename,
+				    struct acl *pacl)
+{
+	if (do_f_ops_acl_check(fs, filename, pacl))
+		return NULL;
+
+	return do_f_ops_acl_set(fs, filename, pacl);
 }
 
 
