@@ -20,6 +20,7 @@ static int is_invalid_filename(const char *filename)
 {
 	int i;
 
+	/* TODO: check components length */
 	if (filename[0] != '/')
 		return NOT_OK;
 
@@ -86,10 +87,6 @@ static int do_f_ops_acl_check(struct file **fs, char *filename,
 {
 	struct file *file_handle;
 	struct acl *ptemp;
-
-	return OK;
-	if (!env_is_set)
-		return OK;
 
 	file_handle = f_ops_get_handle(*fs, filename);
 	if (!file_handle)
@@ -261,7 +258,12 @@ static struct file *do_f_ops_create(struct file **fs, char *filename,
 
 	acl.user = pacl->user;
 	acl.group = pacl->group;
-	acl.permissions = WRITE;
+	printf("<%s> - <%s>:%d\n", filename+6, pacl->user,
+	       strncmp(filename+6, pacl->user, strlen(pacl->user)));
+	if (!strncmp(filename+6, pacl->user, strlen(pacl->user)))
+		acl.permissions = READ;
+	else
+		acl.permissions = WRITE;
 	rval = do_f_ops_acl_check(fs, parent, &acl);
 	if (rval) {
 		fprintf(stderr, "Parent of: \"%s\" isn't writable\n", filename);
@@ -471,8 +473,7 @@ struct file *f_ops_update(struct file **fs, char *filename,
 struct file *f_ops_delete(struct file **fs, char *filename,
 			  struct acl *pacl)
 {
-	DEBUG("deleting::%s,%s,%s,%d\n", filename, pacl->user,
-	      pacl->group, pacl->permissions);
+	DEBUG("deleting::%s\n", filename);
 
 	return do_f_ops_delete(fs, filename, pacl);
 }

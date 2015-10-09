@@ -33,7 +33,7 @@ static inline int is_invalid_line(const char *line)
 static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 {
 	int len;
-	int nline;
+	int nlines;
 
 	char *line;
 	char *user;
@@ -46,7 +46,7 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 	struct file *file_handle;
 	struct acl acl;
 
-	nline = 0;
+	nlines = 0;
 	while (1) {
 		/* when line is NULL: getline allocates appropriate buffer */
 		line = NULL;
@@ -63,12 +63,13 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 			goto end_of_section;
 		}
 		strncpy(linecopy, line, strlen(line));
-		nline++;
+		linecopy[strlen(line)-1] = '\0';
+		nlines++;
 
 		if (is_invalid_line(line))
 			goto malformed_line;
 
-		len = get_user(line, &user, ".\n ");
+		len = get_user(line, &user, ".\n");
 		if (len < 0)
 			goto malformed_line;
 
@@ -76,10 +77,11 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 		if (len < 0)
 			goto malformed_line;
 
-		len = get_filename(NULL, &filename, "\n ");
+		len = get_filename(NULL, &filename, "\n");
 		if (len < 0 || len > FILENAME_LEN)
 			goto malformed_line;
 
+		memset(&acl, 0, sizeof(struct acl));
 		acl.user = user;
 		acl.group = group;
 		acl.permissions = READ_WRITE;
@@ -92,23 +94,28 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 		 * proper user, group, and filename (components missing)
 		 */
 		if (len > 0) {
-			file_handle = f_ops_create(fs, filename, &acl);
+			f_ops_create(fs, filename, &acl);
+			memset(&acl, 0, sizeof(struct acl));
+			acl.user = "*";
+			acl.group = "*";
+			acl.permissions = READ;
+			file_handle = f_ops_update(fs, filename, &acl);
 			if (file_handle)
-				printf("%d\tY\tNo Error\n", nline);
+				printf("%d\tY\tNo Error\n", nlines);
 			else
 				printf("%d\tX\tError: "
 				       "Failed to create: \"%s\"\n",
-				       nline, filename);
-		} else {
+				       nlines, filename);
+		} else if (!len && file_handle) {
 			file_handle = f_ops_update(fs,
 						   file_handle->filename,
 						   &acl);
 			if (file_handle)
-				printf("%d\tY\tNo Error\n", nline);
+				printf("%d\tY\tNo Error\n", nlines);
 			else
 				printf("%d\tX\tError: "
 				       "Failed to update ACLs of: \"%s\"\n",
-				       nline, file_handle->filename);
+				       nlines, file_handle->filename);
 		}
 		free(line);
 		free(linecopy);
@@ -136,6 +143,8 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 {
 	int len;
 	int rval;
+	int ncmds;
+
 	char *cmd;
 	char *line;
 	char *user;
@@ -143,9 +152,12 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 	char *group;
 	char *filename;
 	char *linecopy;
+
 	struct acl acl;
 	size_t n = 12345;
 
+
+	ncmds = 0;
 	while (1) {
 		line = NULL;
 		len = getline(&line, &n, input_stream);
@@ -158,6 +170,8 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 			goto end_of_section;
 		}
 		strncpy(linecopy, line, strlen(line));
+		linecopy[strlen(line)-1] = '\0';
+		ncmds++;
 
 		len = get_cmd(line, &cmd, "\n ");
 		if (len < 0)
@@ -182,23 +196,32 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 
 		if (!strcmp(cmd, "READ")) {
 			acl.permissions = READ;
-			printf("%s. rval:%d\n", linecopy,
-			       -f_ops_acl_check(fs, filename, &acl));
+			rval = f_ops_acl_check(fs, filename, &acl);
+			if (rval)
+				printf("%d\tN\t%s\n", ncmds, linecopy);
+			else
+				printf("%d\tY\t%s\n", ncmds, linecopy);
 		} else if (!strcmp(cmd, "WRITE")) {
 			acl.permissions = WRITE;
-			printf("%s. rval:%d\n", linecopy,
-			       -f_ops_acl_check(fs, filename, &acl));
+			rval = f_ops_acl_check(fs, filename, &acl);
+			if (rval)
+				printf("%d\tN\t%s\n", ncmds, linecopy);
+			else
+				printf("%d\tY\t%s\n", ncmds, linecopy);
 		} else if (!strcmp(cmd, "DELETE")) {
 			acl.permissions = WRITE;
-			rval = f_ops_delete(fs, filename, &acl) ==
-				NULL ? -1:0;
-			printf("%s. rval:%d\n", linecopy, rval);
-
+			rval = f_ops_acl_check(fs, filename, &acl);
+			if (rval)
+				printf("%d\tN\t%s\n", ncmds, linecopy);
+			else
+				printf("%d\tY\t%s\n", ncmds, linecopy);
 		} else if (!strcmp(cmd, "ACL")) {
 			acl.permissions = WRITE;
-			printf("%s. rval:%d\n", linecopy,
-			       -f_ops_acl_check(fs, filename, &acl));
-
+			rval = f_ops_acl_check(fs, filename, &acl);
+			if (rval)
+				printf("%d\tN\t%s\n", ncmds, linecopy);
+			else
+				printf("%d\tY\t%s\n", ncmds, linecopy);
 acl_loop:
 			len = getline(&line, &n, input_stream);
 			if (len == -1)
@@ -217,16 +240,15 @@ acl_loop:
 				len = get_perm(NULL, &perm, "\n");
 				if (len < 0)
 					goto malformed_line;
-				/* TODO: set permissions */
-				DEBUG("cmd:%s, User:%s, Group:%s, Perm:%d\n",
-				      "ACL", acl.user, acl.group,
-				      acl.permissions);
 				goto acl_loop;
 			}
 		} else if (!strcmp(cmd, "CREATE")) {
 			acl.permissions = WRITE;
-			printf("%s:%d\n", linecopy,
-			       -f_ops_acl_check(fs, filename, &acl));
+			rval = f_ops_acl_check(fs, filename, &acl);
+			if (rval)
+				printf("%d\tN\t%s\n", ncmds, linecopy);
+			else
+				printf("%d\tY\t%s\n", ncmds, linecopy);
 create_loop:
 			len = getline(&line, &n, input_stream);
 			if (len == -1)
@@ -245,10 +267,6 @@ create_loop:
 				len = get_perm(NULL, &perm, "\n");
 				if (len < 0)
 					goto malformed_line;
-
-				DEBUG("cmd:%s, User:%s, Group:%s, Perm:%d\n",
-				      "CREATE", acl.user, acl.group,
-				      acl.permissions);
 				goto create_loop;
 			}
 		} else {
@@ -257,9 +275,10 @@ create_loop:
 		free(line);
 		free(linecopy);
 	}
+
 end_of_section:
 	free(line);
-	return OK;
+	return ncmds > 0 ? OK : NOT_OK;
 
 malformed_line:
 	fprintf(stderr, "E: Malformed line: %s", line);
@@ -279,9 +298,10 @@ void ls(struct file *fs)
 		struct acl *temp = fs->acls;
 
 		while (temp != NULL) {
-			 fprintf(stderr, "%s:%s.%s,%d\n",
+			 fprintf(stderr, "%s:%s.%s,%d,%d\n",
 				 fs->filename, temp->user,
-				 temp->group, temp->permissions);
+				 temp->group, temp->permissions,
+				 fs->children);
 			 temp = temp->next;
 		}
 		fs = fs->next;
@@ -301,18 +321,20 @@ int main(int argc, char **argv)
 	rval = parse_user_definition_portion(&FS, stdin);
 	if (rval)
 		goto abort;
-#ifdef _DEBUG
-	ls(FS);
-#endif
-	parse_file_operation_portion(&FS, stdin);
-#ifdef _DEBUG
-	ls(FS);
-#endif
-	f_ops_unmount(&FS);
-#ifdef _DEBUG
-	ls(FS);
-#endif
-	return OK;
+//#ifdef _DEBUG
+//	ls(FS);
+//#endif
+//	rval = parse_file_operation_portion(&FS, stdin);
+//	if (rval)
+//		goto abort;
+//#ifdef _DEBUG
+//	ls(FS);
+//#endif
+//	f_ops_unmount(&FS);
+//#ifdef _DEBUG
+//	ls(FS);
+//#endif
+//	return OK;
 abort:
 	fprintf(stderr, "Simulation aborted\n");
 	return NOT_OK;
