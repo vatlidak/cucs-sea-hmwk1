@@ -15,6 +15,28 @@
 #include "f_ops.h"
 
 
+#ifdef _DEBUG
+void ls(struct file *fs)
+{
+	fprintf(stderr, "-------\n");
+	fprintf(stderr, "#filename:user.group,permissions,children\n");
+	while (fs != NULL) {
+		struct acl *temp = fs->acls;
+
+		while (temp != NULL) {
+			 fprintf(stderr, "%s:%s.%s,%d,%d\n",
+				 fs->filename, temp->user,
+				 temp->group, temp->permissions,
+				 fs->children);
+			 temp = temp->next;
+		}
+		fs = fs->next;
+	}
+	fprintf(stderr, "-------\n");
+}
+#endif
+
+
 static inline int is_invalid_line(const char *line)
 {
 	int i, spaces = 0;
@@ -32,19 +54,11 @@ static inline int is_invalid_line(const char *line)
  */
 static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 {
-	int len;
-	int nlines;
-
-	char *line;
-	char *user;
-	char *group;
-	char *filename;
-	char *linecopy;
-
+	int len, nlines;
+	char *line, *user,  *group, *filename, *linecopy;
 	size_t n = 12345;
-
 	struct file *file_handle;
-	struct acl acl;
+	struct acl acl_rw, acl_r;
 
 	nlines = 0;
 	while (1) {
@@ -80,25 +94,25 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 		if (len < 0 || len > FILENAME_LEN)
 			goto malformed_line;
 
-		memset(&acl, 0, sizeof(struct acl));
-		acl.user = user;
-		acl.group = group;
-		acl.permissions = READ_WRITE;
+		memset(&acl_rw, 0, sizeof(struct acl));
+		acl_rw.user = user;
+		acl_rw.group = group;
+		acl_rw.permissions = READ_WRITE;
+
+		memset(&acl_r, 0, sizeof(struct acl));
+		acl_r.user = "*";
+		acl_r.group = "*";
+		acl_r.permissions = READ;
 
 		DEBUG("User:%s, Group:%s, Filename:%s, len:%d\n",
-		      acl.user, acl.group, filename, len);
-
+		      acl_rw.user, acl_rw.group, filename, len);
 		/*
 		 * At this point it is quaranteed that we have
 		 * proper user, group, and filename (components missing)
 		 */
 		if (len > 0) {
-			f_ops_create(fs, filename, &acl);
-			memset(&acl, 0, sizeof(struct acl));
-			acl.user = "*";
-			acl.group = "*";
-			acl.permissions = READ;
-			file_handle = f_ops_update(fs, filename, &acl);
+			file_handle = f_ops_create(fs, filename, &acl_rw);
+			f_ops_update(fs, filename, &acl_r);
 			if (file_handle)
 				printf("%d\tY\tOK\n", nlines);
 			else
@@ -106,10 +120,8 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 				       "Failed to create: \"%s\"\n",
 				       nlines, filename);
 		} else if (!len && file_handle) {
-			file_handle = f_ops_update(fs,
-						   file_handle->filename,
-						   &acl);
-			if (file_handle)
+
+			if (f_ops_update(fs, file_handle->filename, &acl_rw))
 				printf("%d\tY\tOK\n", nlines);
 			else
 				printf("%d\tX\tE: "
@@ -291,26 +303,6 @@ malformed_line:
 }
 
 
-#ifdef _DEBUG
-void ls(struct file *fs)
-{
-	fprintf(stderr, "-------\n");
-	while (fs != NULL) {
-		struct acl *temp = fs->acls;
-
-		while (temp != NULL) {
-			 fprintf(stderr, "%s:%s.%s,%d,%d\n",
-				 fs->filename, temp->user,
-				 temp->group, temp->permissions,
-				 fs->children);
-			 temp = temp->next;
-		}
-		fs = fs->next;
-	}
-	fprintf(stderr, "-------\n");
-}
-#endif
-
 
 int main(int argc, char **argv)
 {
@@ -332,11 +324,9 @@ int main(int argc, char **argv)
 	ls(FS);
 #endif
 	f_ops_unmount(&FS);
-#ifdef _DEBUG
-	ls(FS);
-#endif
 	return OK;
 abort:
 	fprintf(stderr, "Simulation aborted\n");
+	f_ops_unmount(&FS);
 	return NOT_OK;
 }

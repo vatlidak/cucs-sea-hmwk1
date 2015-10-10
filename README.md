@@ -15,33 +15,44 @@ src/main.c:
 scripts/checkpatch.pl: Format checking script
 
 ## Notes - Conventions
-Spaces at the beginning of file names are stripped, if more than one.
-
 Attempting to create a file that already exists, produces an error.
 
 Parsing is completely aborted upon errors caused by malformed lines.
 
+Any user appearing either in the user definitioin portion or in the operations
+should have a dedicated home folder except for one case: when the user tries
+to create his or her home folder for the first time.
 
-## Questions
--What happens if user.group is recreated in another line for the same file?
--For sure I do delete, create stuff, right?
+Since to every file created in the user definition portion  we append an "*.* r"
+ACL, any "READ user.group filename command" for a filename in the operations
+portion will always be valid -- unless an explicit ACL update changing the ACLs
+of a filename preceeds the READ command.
+
+Also regarding the following two sentences: "A file that does not belong
+to anyone will allow only reads but no writes" and "if you create a file with
+NULL ACL, it inherits the ACL of its parent".  The only two files that possibly
+do not belong to anyone will be "/tmp" and "/home.  Any other file will be created
+either in the user definition portion (line: user.group filename) or in the
+operations portion (line: CREATE user.group filename -- "followed by a mandatory
+ACL for the file"), and therefore in the current spec it is impossible to create a file that belongs to noone.
+
 
 ## TODO
--Review ACL tests
--ACL when no home folder for users should fail
--Cannot create ACL for user without home folder: This expains why I need
-seperate lines for evaluasting "uesr.group" commandsd of user definition section
--Cannot delete parent folders with kids on top.
--home is not writable -  user should be able to create home folder
-check ACLs on all previous components every time and assert READ?
--COMMAND SECTION ONLY: Inherits ACLs from parents when creted with NULL ACLs
--COMMAND SECTION ONLY: ACLs command overwrites the ACLs.
--Valgrid test
--Print errors commands section
--Implement COMMANDS:
-.READ
-.WRITE
-.ACL
-.CREATE
-.DELETE
--we at least need some orerations section
+-ACL checks: Order & what superceeds what?
+-COMMAND SECTION ONLY: What is the difference betwen N and E?
+-Implement ACL command
+-Implement CREATE command
+
+
+In the operations portion the commands "[CREATE|ACL] user.group filename" 
+do not append an ACL "user.group rw" unlike what happens in the user
+definition portion (Steve's Mail -- last night -- specifies that files created
+in the user definition portion will have an ACL "user.group").
+In order for ACLs to be appended in the operations portion, there needs to be
+an explicit rule in a seperate line that following the
+"[CREATE|ACL] user.group filename" line.
+
+
+An "ACL user.group filename" command overwrites any existing ACLs of filename --
+that is, it does not append new ACLs. (This convention simplifies things and
+helos avoid confusion.)

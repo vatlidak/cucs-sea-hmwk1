@@ -26,12 +26,12 @@ static int is_invalid_filename(const char *filename)
 	token = strtok(dup, "/");
 	if (strlen(token) > COMPONENT_LEN) {
 		free(dup);
-		return NOT_OK;
+		goto error;
 	}
 	while ((token = strtok(NULL, "/")) != NULL)
 		if (strlen(token) > COMPONENT_LEN) {
 			free(dup);
-			return NOT_OK;
+			goto error;
 		}
 	free(dup);
 
@@ -41,13 +41,15 @@ static int is_invalid_filename(const char *filename)
 
 	if (strncmp(filename, "/home", strlen("/home"))
 	    && strncmp(filename, "/tmp", strlen("/tmp")))
-		return NOT_OK;
+		goto error;
 
 	/* assert not more than one consecutive '/' */
 	for (i = 0; i < (int)strlen(filename) - 1; i++)
 		if (filename[i] == '/' && filename[i+1] == '/')
-			return NOT_OK;
+			goto error;
 	return OK;
+error:
+	return NOT_OK;
 }
 
 
@@ -84,18 +86,33 @@ static int do_f_ops_acl_check(struct file **fs, char *filename,
 			      struct acl *pacl)
 {
 	char *parent, *dup;
+	char homefolder[FILENAME_LEN];
 	struct file *file_handle;
 	struct acl *ptemp;
 	struct acl acl;
 
-/*	return OK; */
+	/*
+	 * Users need to have home folder -- except when trying
+	 * to create it or when user is "*".
+	 */
+	sprintf(homefolder, "/home/%s", pacl->user);
+	if (strcmp(filename, homefolder)
+	    && strcmp(filename, "/home") && strcmp(filename, "/tmp")
+	    && strcmp(pacl->user, "*")) {
+
+		if (!f_ops_get_handle(*fs, homefolder)) {
+			fprintf(stderr, "User: %s has no home folder:<%s>\n",
+				pacl->user, homefolder);
+			goto error;
+		}
+	}
 	file_handle = f_ops_get_handle(*fs, filename);
 	if (!file_handle)
-		return NOT_OK;
+		goto error;
 
 	ptemp = file_handle->acls;
 	if (!ptemp)
-		return NOT_OK;
+		goto error;
 
 
 	/* recursively check READ permissions on all predecessors */
@@ -106,36 +123,41 @@ static int do_f_ops_acl_check(struct file **fs, char *filename,
 	if (*parent == '.') {
 		fprintf(stderr, "Can't parse parent of: \"%s\"\n", filename);
 		free(dup);
-		return NOT_OK;
+		goto error;
 	}
 	acl.user = pacl->user;
 	acl.group = pacl->group;
 	acl.permissions = READ;
-	if (f_ops_acl_check(fs, parent, &acl)) {
+	if (do_f_ops_acl_check(fs, parent, &acl)) {
 		fprintf(stderr, "Parent of: \"%s\" not READable\n", filename);
 		free(dup);
-		return NOT_OK;
-	} else
-		fprintf(stderr, "Parent of: \"%s\" is READable\n", filename);
+		goto error;
+	}
+
 no_predecessors_end_recursion:
 	free(dup);
 
+	/* All right -- the actual ACLs check is performed here */
+/*	printf("ACL LOOP\n--------\n"); */
 	while (ptemp != NULL) {
-		if (!strcmp(ptemp->user, "*") || !strcmp(ptemp->group, "*")) {
-			if ((ptemp->permissions & pacl->permissions) == 0)
-				return NOT_OK;
-			else
-				return OK;
-		}
+/*		printf("temp:<%s,%s,%s,%d>, arg:<%s,%s,%s,%d>\n",
+			filename, ptemp->user, ptemp->group, ptemp->permissions,
+*/			filename, pacl->user, pacl->group, pacl->permissions);
 		if (!strcmp(ptemp->user, pacl->user) ||
-		    !strcmp(ptemp->group, pacl->group)) {
-			if ((ptemp->permissions & pacl->permissions) == 0)
-				return NOT_OK;
-			else
+		    !strcmp(ptemp->group, pacl->group) ||
+		    !strcmp(ptemp->user, "*") ||
+		    !strcmp(ptemp->group, "*")) {
+			if ((ptemp->permissions & pacl->permissions) == 0) {
+/*				printf("BREAK:NOT_OK\n"); */
+				goto error;
+			} else {
+/*				printf("OK\n"); */
 				return OK;
+			}
 		}
 		ptemp = ptemp->next;
 	}
+error:
 	return NOT_OK;
 }
 
@@ -157,7 +179,7 @@ static struct file *do_f_ops_acl_set(struct file **fs, char *filename,
 
 	file_handle = f_ops_get_handle(*fs, filename);
 	if (!file_handle)
-		return NULL;
+		goto error;
 
 	ppacl = &file_handle->acls;
 
@@ -167,27 +189,29 @@ static struct file *do_f_ops_acl_set(struct file **fs, char *filename,
 	*ppacl = calloc(1, sizeof(struct acl));
 	if (!*ppacl) {
 		perror("calloc");
-		return NULL;
+		goto error;
 	}
 	(*ppacl)->permissions = pacl->permissions;
 
 	(*ppacl)->user = calloc(strlen(pacl->user) + 1, sizeof(char));
 	if (!(*ppacl)->user) {
 		perror("calloc");
-		return NULL;
+		goto error;
 	}
 	strcpy((*ppacl)->user, pacl->user);
 
 	(*ppacl)->group = calloc(strlen(pacl->group) + 1, sizeof(char));
 	if (!(*ppacl)->group) {
 		perror("calloc");
-		return NULL;
+		goto error;
 	}
 	strcpy((*ppacl)->group, pacl->group);
 
 	(*ppacl)->next = NULL;
 
 	return file_handle;
+error:
+	return NULL;
 }
 
 
@@ -206,7 +230,7 @@ static struct file *do_f_ops_mount(struct file **fs)
 	file_handle = calloc(1, sizeof(struct file));
 	if (!file_handle) {
 		perror("calloc");
-		return NULL;
+		goto error;
 	}
 	strcpy(file_handle->filename, "/home");
 	file_handle->acls = NULL;
@@ -220,12 +244,12 @@ static struct file *do_f_ops_mount(struct file **fs)
 	acl.group = "*";
 	acl.permissions = READ;
 	if (!do_f_ops_acl_set(fs, file_handle->filename, &acl))
-		return NULL;
+		goto error;
 
 	file_handle = calloc(1, sizeof(struct file));
 	if (!file_handle) {
 		perror("calloc");
-		return NULL;
+		goto error;
 	}
 	strcpy(file_handle->filename, "/tmp");
 	file_handle->acls = NULL;
@@ -239,11 +263,13 @@ static struct file *do_f_ops_mount(struct file **fs)
 	acl.group = "*";
 	acl.permissions = READ_WRITE;
 	if (!do_f_ops_acl_set(fs, file_handle->filename, &acl))
-		return NULL;
+		goto error;
 
 	env_is_set = 1;
 
 	return *fs;
+error:
+	return NULL;
 }
 
 
@@ -289,8 +315,8 @@ static struct file *do_f_ops_create(struct file **fs, char *filename,
 				    struct acl *pacl)
 {
 	int rval;
-	char *bname;
 	char *parent, *dup;
+	char _filename[FILENAME_LEN];
 	struct acl acl;
 	struct file *file_handle;
 
@@ -307,12 +333,15 @@ static struct file *do_f_ops_create(struct file **fs, char *filename,
 
 	acl.user = pacl->user;
 	acl.group = pacl->group;
-	bname = basename(filename);
-	/* TODO: decide this one */
-	if (!strncmp(bname, pacl->user, strlen(pacl->user)))
+	/*
+	 * if user tries to create home folder, relax restrictions;
+	 * but only for home folder. For any other creation WRITE
+	 * persmission is required.
+	 */
+	acl.permissions = WRITE;
+	sprintf(_filename, "/home/%s", acl.user);
+	if (!strncmp(_filename, filename, strlen(filename)))
 		acl.permissions = READ;
-	else
-		acl.permissions = WRITE;
 	rval = f_ops_acl_check(fs, parent, &acl);
 	if (rval) {
 		fprintf(stderr,
@@ -449,10 +478,31 @@ error:
 static struct file *do_f_ops_update(struct file **fs, char *filename,
 				    struct acl *pacl)
 {
-/*	if (do_f_ops_acl_check(fs, filename, pacl))
-		return NULL;
-*/
+	int rval;
+	struct acl acl;
+
+	/*
+	 * Only when appending ACLs (not when creting the
+	 * first user) the user can be "*", since the file
+	 * already belongs to some user.
+	 */
+	if (!strcmp(pacl->user, "*"))
+		goto out;
+
+	acl.user = pacl->user;
+	acl.group = pacl->group;
+	acl.permissions = WRITE;
+	rval = f_ops_acl_check(fs, filename, &acl);
+	if (rval) {
+		fprintf(stderr,
+			"Parent of: \"%s\" isn't writable from user: \"%s\"\n",
+			filename, acl.user);
+		goto error;
+	}
+out:
 	return do_f_ops_acl_set(fs, filename, pacl);
+error:
+	return NULL;
 }
 
 
