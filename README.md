@@ -34,15 +34,8 @@ NULL ACL, it inherits the ACL of its parent".  The only two files that possibly
 do not belong to anyone will be "/tmp" and "/home.  Any other file will be created
 either in the user definition portion (line: user.group filename) or in the
 operations portion (line: CREATE user.group filename -- "followed by a mandatory
-ACL for the file"), and therefore in the current spec it is impossible to create a file that belongs to noone.
-
-
-## TODO
--every ACL ends with -
--ACL checks: Order & what superceeds what?
--COMMAND SECTION ONLY: What is the difference betwen N and E?
--Errors format
-
+ACL for the file"), and therefore in the current spec it is impossible to create
+a file that belongs to noone.
 
 In the operations portion the commands "[CREATE|ACL] user.group filename" 
 do not append an ACL "user.group rw" unlike what happens in the user
@@ -56,3 +49,9 @@ an explicit rule in a seperate line that following the
 An "ACL user.group filename" command overwrites any existing ACLs of filename --
 that is, it does not append new ACLs. (This convention simplifies things and
 helos avoid confusion.)
+
+## TODO
+-every ACL ends with -
+-ACL checks: Order & what superceeds what?
+-COMMAND SECTION ONLY: What is the difference betwen N and E?
+-Errors format

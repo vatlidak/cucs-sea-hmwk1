@@ -1,7 +1,7 @@
 /*
- * Filename
+ * Filename: src/main.c
  *
- * Description
+ * Description: Main parsing loop entry-points
  *
  * Copyright (C) 2015 V. Atlidakis
  *
