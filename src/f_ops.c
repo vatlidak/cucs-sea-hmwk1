@@ -77,6 +77,38 @@ static inline struct file *f_ops_get_handle_prev(struct file *fs,
 }
 
 
+static inline struct acl *copy_acls(struct acl **dst, struct acl *src)
+{
+	struct acl *temp;
+
+	while (src != NULL) {
+		temp = calloc(1, sizeof(struct acl));
+		if (!temp) {
+			perror("calloc");
+			goto error;
+		}
+		temp->user = calloc(strlen(src->user) + 1, sizeof(char));
+	 	temp->group = calloc(strlen(src->group) + 1, sizeof(char));
+		if (!temp->user || !temp->group) {
+			perror("calloc");
+			goto error;
+		}
+		strcpy(temp->user, src->user);
+		strcpy(temp->group, src->group);
+		temp->permissions = src->permissions;
+	 	temp->next = NULL;
+		/* Append ACL from src (parent) to dst (child) */
+		while (*dst)
+			dst = &(*dst)->next;
+		*dst = temp;
+		src = src->next;
+	}
+	return *dst;
+error:
+	return NULL;
+}
+
+
 /*
  * Main method doing the ACL checks
  *
@@ -114,7 +146,6 @@ static int do_f_ops_acl_check(struct file **fs, char *filename,
 	if (!ptemp)
 		goto error;
 
-
 	/* recursively check READ permissions on all predecessors */
 	dup = strdup(filename);
 	parent = dirname(dup);
@@ -133,7 +164,6 @@ static int do_f_ops_acl_check(struct file **fs, char *filename,
 		free(dup);
 		goto error;
 	}
-
 no_predecessors_end_recursion:
 	free(dup);
 
@@ -156,10 +186,10 @@ error:
 
 
 /*
- * This method updates the ACLs of a file; and if respective
- * node does not exist, it is created.
+ * This method updates the ACLs of a file.
  *
- * Caller must have permissions to set acls -- no check here.
+ * Caller must have permissions to set acls and filename must
+ * correspond to a valid file -- no checks here (only mem alloc).
  */
 static struct file *do_f_ops_acl_set(struct file **fs, char *filename,
 				     struct acl *pacl)
@@ -171,21 +201,21 @@ static struct file *do_f_ops_acl_set(struct file **fs, char *filename,
 	      pacl->permissions);
 
 	file_handle = f_ops_get_handle(*fs, filename);
-	if (!file_handle)
-		goto error;
+	if (pacl->permissions == INHERIT_FROM_PARENT) {
+		if (!copy_acls(&file_handle->acls, file_handle->parent->acls))
+			goto error;
+		goto out;
+	}
 
 	ppacl = &file_handle->acls;
-
 	while (*ppacl != NULL)
 		ppacl = &((*ppacl)->next);
-
 	*ppacl = calloc(1, sizeof(struct acl));
 	if (!*ppacl) {
 		perror("calloc");
 		goto error;
 	}
 	(*ppacl)->permissions = pacl->permissions;
-
 	(*ppacl)->user = calloc(strlen(pacl->user) + 1, sizeof(char));
 	if (!(*ppacl)->user) {
 		perror("calloc");
@@ -199,9 +229,8 @@ static struct file *do_f_ops_acl_set(struct file **fs, char *filename,
 		goto error;
 	}
 	strcpy((*ppacl)->group, pacl->group);
-
 	(*ppacl)->next = NULL;
-
+out:
 	return file_handle;
 error:
 	return NULL;
@@ -351,7 +380,6 @@ static struct file *do_f_ops_create(struct file **fs, char *filename,
 	/*
 	 * Done with tests ;-)
 	 */
-
 	file_handle = calloc(1, sizeof(struct file));
 	if (!file_handle) {
 		perror("calloc");
@@ -397,7 +425,7 @@ static struct file *do_f_ops_delete(struct file **fs, char *filename,
 
 	/* During unmounting disable checks to allow removing of everything*/
 	if (!env_is_set)
-		goto no_checks;
+		goto relax_checks;
 
 	/* Otherwise, no-one removes /home and /tmp */
 	if (!strcmp(filename, "/tmp") || !strcmp(filename, "/home")) {
@@ -415,7 +443,7 @@ static struct file *do_f_ops_delete(struct file **fs, char *filename,
 		goto error;
 	}
 
-no_checks:
+relax_checks:
 	file_handle = f_ops_get_handle(*fs, filename);
 	if (!file_handle) {
 		fprintf(stderr, "File: \"%s\" does not exist\n", filename);
@@ -427,7 +455,6 @@ no_checks:
 		goto error;
 	}
 
-
 	/* find previous node and shortcut current */
 	prev = *fs;
 	while (prev) {
@@ -437,7 +464,6 @@ no_checks:
 		prev = prev->next;
 
 	}
-
 	/* if no previous node found, current is at the beginning */
 	if (prev)
 		prev->next = file_handle->next;
@@ -474,6 +500,8 @@ static struct file *do_f_ops_update(struct file **fs, char *filename,
 {
 	int rval;
 	struct acl acl;
+	char *parent, *dup;
+	struct file *file_handle;
 
 	/*
 	 * Only when appending ACLs (not when creting the
@@ -483,19 +511,33 @@ static struct file *do_f_ops_update(struct file **fs, char *filename,
 	if (!strcmp(pacl->user, "*"))
 		goto out;
 
+	dup = strdup(filename);
+	parent = dirname(dup);
+	if (*parent == '.') {
+		fprintf(stderr, "Can't parse parent of: \"%s\"\n", filename);
+		goto error;
+	}
+
+	file_handle = f_ops_get_handle(*fs, filename);
+	if (!file_handle) {
+		fprintf(stderr, "File: \"%s\" does not exist\n", filename);
+		goto error;
+	}
 	acl.user = pacl->user;
 	acl.group = pacl->group;
 	acl.permissions = WRITE;
-	rval = f_ops_acl_check(fs, filename, &acl);
+	rval = f_ops_acl_check(fs, parent, &acl);
 	if (rval) {
 		fprintf(stderr,
 			"Parent of: \"%s\" isn't writable from user: \"%s\"\n",
 			filename, acl.user);
 		goto error;
 	}
+	free(dup);
 out:
 	return do_f_ops_acl_set(fs, filename, pacl);
 error:
+	free(parent);
 	return NULL;
 }
 
