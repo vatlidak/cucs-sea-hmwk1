@@ -38,10 +38,10 @@ ACL for the file"), and therefore in the current spec it is impossible to create
 
 
 ## TODO
+-every ACL ends with -
 -ACL checks: Order & what superceeds what?
 -COMMAND SECTION ONLY: What is the difference betwen N and E?
--Implement ACL command
--Implement CREATE command
+-Errors format
 
 
 In the operations portion the commands "[CREATE|ACL] user.group filename" 

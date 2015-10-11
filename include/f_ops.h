@@ -5,6 +5,15 @@
  *
  * COMS W4187 Fall 2015, Columbia University
  */
+#define OK 0
+#define NOT_OK -1
+
+#ifdef _DEBUG
+#define DEBUG(fmt, ...) fprintf(stderr, fmt, ## __VA_ARGS__)
+#else
+#define DEBUG(fmt, ...)
+#endif
+
 #define FILENAME_LEN 256
 #define COMPONENT_LEN 16
 
@@ -13,14 +22,20 @@
 #define READ_WRITE 3
 #define NO_PERM 0
 
-#ifdef _DEBUG
-#define DEBUG(fmt, ...) fprintf(stderr, fmt, ## __VA_ARGS__)
-#else
-#define DEBUG(fmt, ...)
-#endif
 
-#define OK 0
-#define NOT_OK -1
+static inline int encode(const char *permission)
+{
+	if (!strcmp(permission, "rw"))
+		return READ_WRITE;
+	if (!strcmp(permission, "r"))
+		return READ;
+	if (!strcmp(permission, "w"))
+		return WRITE;
+	if (!strcmp(permission, "-"))
+		return NO_PERM;
+	return NO_PERM;
+}
+
 
 int env_is_set;
 
@@ -30,7 +45,6 @@ struct acl {
 	char *group;
 	struct acl *next;
 };
-
 
 struct file {
 	struct acl  *acls;

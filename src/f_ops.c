@@ -16,7 +16,7 @@
 #include "f_ops.h"
 
 
-static int is_invalid_filename(const char *filename)
+static inline int is_invalid_filename(const char *filename)
 {
 	int i;
 	char *dup, *token;
@@ -138,22 +138,15 @@ no_predecessors_end_recursion:
 	free(dup);
 
 	/* All right -- the actual ACLs check is performed here */
-/*	printf("ACL LOOP\n--------\n"); */
 	while (ptemp != NULL) {
-/*		printf("temp:<%s,%s,%s,%d>, arg:<%s,%s,%s,%d>\n",
-			filename, ptemp->user, ptemp->group, ptemp->permissions,
-*/			filename, pacl->user, pacl->group, pacl->permissions);
 		if (!strcmp(ptemp->user, pacl->user) ||
 		    !strcmp(ptemp->group, pacl->group) ||
 		    !strcmp(ptemp->user, "*") ||
 		    !strcmp(ptemp->group, "*")) {
-			if ((ptemp->permissions & pacl->permissions) == 0) {
-/*				printf("BREAK:NOT_OK\n"); */
+			if ((ptemp->permissions & pacl->permissions) == 0)
 				goto error;
-			} else {
-/*				printf("OK\n"); */
+			else
 				return OK;
-			}
 		}
 		ptemp = ptemp->next;
 	}
@@ -339,6 +332,7 @@ static struct file *do_f_ops_create(struct file **fs, char *filename,
 	 * persmission is required.
 	 */
 	acl.permissions = WRITE;
+	memset(_filename, 0, FILENAME_LEN);
 	sprintf(_filename, "/home/%s", acl.user);
 	if (!strncmp(_filename, filename, strlen(filename)))
 		acl.permissions = READ;
