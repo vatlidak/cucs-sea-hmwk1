@@ -20,7 +20,8 @@
 #define READ 1
 #define WRITE 2
 #define READ_WRITE 3
-#define NO_PERM 0
+#define NO_PERMISSION 0
+#define INHERIT_FROM_PARENT -1
 
 
 static inline int encode(const char *permission)
@@ -32,8 +33,10 @@ static inline int encode(const char *permission)
 	if (!strcmp(permission, "w"))
 		return WRITE;
 	if (!strcmp(permission, "-"))
-		return NO_PERM;
-	return NO_PERM;
+		return NO_PERMISSION;
+	if (!strcmp(permission, "inherit"))
+		return INHERIT_FROM_PARENT;
+	return NO_PERMISSION;
 }
 
 
@@ -61,3 +64,4 @@ struct file *f_ops_update(struct file **fs, char *filename, struct acl *acl);
 struct file *f_ops_delete(struct file **fs, char *filename, struct acl *acl);
 
 int f_ops_acl_check(struct file **fs, char *filename, struct acl *acl);
+int f_ops_invalid_home_folder(struct file **fs, char *username);

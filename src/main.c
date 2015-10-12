@@ -49,6 +49,23 @@ static inline int is_invalid_line(const char *line)
 }
 
 
+static inline void get_at_end_of_command(FILE *input_stream)
+{
+	size_t n = 12345;
+	char *opsline;
+	int len;
+
+	while (1) {
+		opsline = NULL;
+		len = getline(&opsline, &n, input_stream);
+		if (len == -1 || !strcmp(opsline, ".\n"))
+			break;
+		free(opsline);
+	}
+	free(opsline);
+}
+
+
 /*
  * parse_user_definition: parses the user definition portion of the  file
  */
@@ -80,18 +97,14 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 
 		if (len == 2 && strncmp(line, ".\n", 2) == 0)
 			goto out_free_line;
-
 		if (is_invalid_line(line))
 			goto error_free_line;
-
 		len = get_user(line, &user, ".\n");
 		if (len < 0)
 			goto error_free_line;
-
 		len = get_group(NULL, &group, "\n ");
 		if (len < 0)
 			goto error_free_line;
-
 		len = get_filename(NULL, &filename, "\n");
 		if (len < 0 || len > FILENAME_LEN)
 			goto error_free_line;
@@ -113,14 +126,17 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 		 * proper user, group, and filename (components missing)
 		 */
 		if (len > 0) {
+
+			/* TODO: check here for bug */
 			file_handle = f_ops_create(fs, filename, &acl_rw);
-			f_ops_update(fs, filename, &acl_r);
-			if (file_handle)
+			if (file_handle) {
+				f_ops_update(fs, filename, &acl_r);
 				printf("%d\tY\tOK\n", nlines);
-			else
+			} else {
 				printf("%d\tX\tE: "
 				       "Failed to create: \"%s\"\n",
 				       nlines, filename);
+			}
 		} else if (!len && file_handle) {
 
 			if (f_ops_update(fs, file_handle->filename, &acl_rw))
@@ -160,7 +176,6 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 	int len, rval, ncmds;
 	struct acl acl_, acl_w, acl_r;
 	struct file *file_handle;
-	char _filename[FILENAME_LEN];
 	char *cmdline, *_cmdline, *opsline;
 	char *cmd, *user, *permissions, *group, *filename;
 
@@ -178,23 +193,18 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 			goto out_free_cmd;
 		}
 		_cmdline[strlen(cmdline)-1] = '\0';
-
 		len = get_cmd(cmdline, &cmd, "\n ");
 		if (len < 0)
 			goto error_free_cmd;
-
 		len = get_user(NULL, &user, "\n.");
 		if (len < 0)
 			goto error_free_cmd;
-
-		len = get_group(NULL, &group, "\n  ");
+		len = get_group(NULL, &group, "\n ");
 		if (len < 0)
 			goto error_free_cmd;
-
 		len = get_filename(NULL, &filename, "\n");
 		if (len < 0 || len > FILENAME_LEN)
 			goto error_free_cmd;
-
 		DEBUG("cmd:%s, User:%s, Group:%s, Filename:%s\n",
 		      cmd, user, group, filename);
 
@@ -205,161 +215,164 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 			rval = f_ops_acl_check(fs, filename, &acl_r);
 			if (rval) {
 				printf("%d\tN\t%s\tE: ", ncmds, _cmdline);
-				printf("...\n");
+				printf("Failed to read file\n");
 			} else {
 				printf("%d\tY\t%s\tOK\n", ncmds, _cmdline);
 			}
-			ncmds++;
+			goto cmd_loop;
 		} else if (!strcmp(cmd, "WRITE")) {
 			acl_w.user = user;
 			acl_w.group = group;
 			acl_w.permissions = WRITE;
 			if (f_ops_acl_check(fs, filename, &acl_w)) {
 				printf("%d\tN\t%s\tE: ", ncmds, _cmdline);
-				printf("...\n");
+				printf("Failed to write file\n");
 			} else {
-				printf("%d\tY\t%s\n", ncmds, _cmdline);
+				printf("%d\tY\t%s\tOK\n", ncmds, _cmdline);
 			}
-			ncmds++;
+			goto cmd_loop;
 		} else if (!strcmp(cmd, "DELETE")) {
 			acl_w.user = user;
 			acl_w.group = group;
 			acl_w.permissions = WRITE;
-			if (f_ops_delete(fs, filename, &acl_w)) {
+			if (f_ops_acl_check(fs, filename, &acl_w)) {
 				printf("%d\tN\t%s\tE: ", ncmds, _cmdline);
-				printf("...\n");
+				printf("Failed to delete file\n");
 			} else {
+				f_ops_delete(fs, filename, &acl_w);
 				printf("%d\tY\t%s\tOK\n", ncmds, _cmdline);
 			}
-			ncmds++;
+			goto cmd_loop;
 		} else if (!strcmp(cmd, "CREATE")) {
 			/*
 			 * CREATE user.group filename
 			 *	   user1.group1 permissions
 			 *	   user2.group2 permissions
 			 *	   ...
+			 *	   userN.groupN permissions
 			 *	   .
-			 * Since f_ops_create actually creates the file
-			 * with "rw" permissions for the user.group, before
-			 * creation of the file check that user.group has home
-			 * folder, and then create the file appending ACLs
-			 * of user1.group1, user2.group2, etc. Note that this
-			 * check is disabled when the user tries to create
-			 * his or her own home folder.
 			 */
 			file_handle = NULL;
-			acl_r.user = user;
-			acl_r.group = group;
-			acl_r.permissions = READ;
-			memset(_filename, 0, FILENAME_LEN);
-			sprintf(_filename, "/home/%s", acl_r.user);
-			if (!strncmp(_filename, filename, strlen(filename)))
-				goto create_loop;
-			rval = f_ops_acl_check(fs, _filename, &acl_r);
-			if (rval) {
-				printf("%d\tN\t%s\tE: ", ncmds, _cmdline);
-				printf("...\n");
-			} else {
-				printf("%d\tY\t%s\tOK\n", ncmds, _cmdline);
-			}
 create_loop:
+			/* loop consuming lines following CREATE cmd */
 			opsline = NULL;
 			len = getline(&opsline, &n, input_stream);
 			if (len == -1)
 				goto out_free_ops_free_cmd;
-
+			/* end of a CREATE cmd with NULL ACLs specified*/
 			if (len == 2 && !strcmp(opsline, ".\n")
 			    && !file_handle) {
-				printf("%d\tN\t%s\tE: ", ncmds, _cmdline);
-				printf("...\n");
+				acl_.user = user;
+				acl_.group = group;
+				acl_.permissions = encode("inherit");
+				file_handle = f_ops_create(fs, filename, &acl_);
+				if (file_handle)
+					printf("%d\tY\t%s\tOK\n",
+					       ncmds, _cmdline);
+				else
+					printf("%d\tN\t%s\tE: "
+					       "Failed to create file\n",
+					       ncmds, _cmdline);
+				free(opsline);
+				goto cmd_loop;
+			/* end of CREATE cmd with ACLs specified */
 			} else if (len == 2 && !strcmp(opsline, ".\n")) {
-				ncmds++;
+				if (file_handle)
+					printf("%d\tY\t%s\tOK\n",
+					       ncmds, _cmdline);
+				else
+					printf("%d\tN\t%s\tE: "
+					       "Failed to create file\n",
+					       ncmds, _cmdline);
 				free(opsline);
 				goto cmd_loop;
 			}
+			/* if here, consume a "user.group permissions" line */
 			len = get_user(opsline, &user, ".");
 			if (len < 0)
 				goto error_free_ops_free_cmd;
-
 			len = get_group(NULL, &group, " ");
 			if (len < 0)
 				goto error_free_ops_free_cmd;
-
 			len = get_perm(NULL, &permissions, "\n");
 			if (len < 0)
 				goto error_free_ops_free_cmd;
 			acl_.user = user;
 			acl_.group = group;
 			acl_.permissions = encode(permissions);
+			/* create or update file with ACLs read from stdin */
 			if (!file_handle)
 				file_handle = f_ops_create(fs, filename, &acl_);
 			else
-				file_handle = f_ops_update(fs, filename, &acl_);
-			if (file_handle)
-				printf("%d\tY\tOK\n", ncmds);
-			else
-				printf("%d\tX\tE: "
-				       "Failed to create: \"%s\"\n",
-				       ncmds, filename);
+				f_ops_update(fs, filename, &acl_);
 			free(opsline);
-			goto create_loop;
+			if (file_handle) {
+				printf("%d\tY\tOK\n", ncmds);
+				goto create_loop;
+			} else {
+				/*
+				 * creation failed the first time but we
+				 * still need to consume lines until reaching
+				 * the "." line.
+				 */
+				printf("%d\t%s\tN\tE: "
+				       "Failed to create file\n",
+				       ncmds, _cmdline);
+				get_at_end_of_command(input_stream);
+				goto cmd_loop;
+			}
+		/* end of CREATE cmd */
 		} else if (!strcmp(cmd, "ACL")) {
 			/*
 			 * ACL user.group filename
 			 *	   user1.group1 permissions
 			 *	   user2.group2 permissions
 			 *	   ...
+			 *	   userN.groupN permissions
 			 *	   .
-			 * Since f_ops_create actually creates the file
-			 * with "rw" permissions for the user.group, before
-			 * updating the ACLs of the file check that
-			 * user.group has home folder, and then create
-			 * the file appending ACLs of user1.group1,
-			 * user2.group2, etc.
 			 */
 			file_handle = NULL;
-			acl_r.user = user;
-			acl_r.group = group;
-			acl_r.permissions = READ;
-			memset(_filename, 0, FILENAME_LEN);
-			sprintf(_filename, "/home/%s", acl_r.user);
-			rval = f_ops_acl_check(fs, _filename, &acl_r);
-			if (rval) {
-				printf("%d\tN\t%s\tE: ", ncmds, _cmdline);
-				printf("...\n");
-			} else {
-				printf("%d\tY\t%s\tOK\n", ncmds, _cmdline);
-			}
+			/* loop consuming lines following ACL cmd */
 acl_loop:
 			opsline = NULL;
 			len = getline(&opsline, &n, input_stream);
-			if (len == -1) {
-				printf("ps\n");
+			if (len == -1)
 				goto out_free_ops_free_cmd;
-			}
+			/* end of a CREATE cmd with NULL ACLs specified*/
 			if (len == 2 && !strcmp(opsline, ".\n")
 			    && !file_handle) {
+				acl_.user = user;
+				acl_.group = group;
 				printf("%d\tN\t%s\tE: ", ncmds, _cmdline);
-				printf("...\n");
+				printf("Invalid (null) ACLs for file\n");
+				free(opsline);
+				goto cmd_loop;
+			/* end of CREATE cmd with ACLs specified */
 			} else if (len == 2 && !strcmp(opsline, ".\n")) {
-				ncmds++;
+				if (file_handle)
+					printf("%d\tY\t%s\tOK\n",
+					       ncmds, _cmdline);
+				else
+					printf("%d\tN\t%s\tE: "
+					       "Failed to create file\n",
+					       ncmds, _cmdline);
 				free(opsline);
 				goto cmd_loop;
 			}
+			/* if here, consume a "user.group permissions" line */
 			len = get_user(opsline, &user, ".");
 			if (len < 0)
 				goto error_free_ops_free_cmd;
-
 			len = get_group(NULL, &group, " ");
 			if (len < 0)
 				goto error_free_ops_free_cmd;
-
 			len = get_perm(NULL, &permissions, "\n");
 			if (len < 0)
 				goto error_free_ops_free_cmd;
 			acl_.user = user;
 			acl_.group = group;
 			acl_.permissions = encode(permissions);
+			/* create or update file with ACLs read from stdin */
 			if (!file_handle) {
 				/*
 				 * Remove the file (if it exists) so that new
@@ -368,22 +381,36 @@ acl_loop:
 				f_ops_delete(fs, filename, &acl_);
 				file_handle = f_ops_create(fs, filename, &acl_);
 			} else {
-				file_handle = f_ops_update(fs, filename, &acl_);
+				f_ops_update(fs, filename, &acl_);
 			}
-			if (file_handle)
-				printf("%d\tY\tOK\n", ncmds);
-			else
-				printf("%d\tX\tE: "
-				       "Failed to create: \"%s\"\n",
-				       ncmds, filename);
 			free(opsline);
-			goto acl_loop;
-		} else {
-			printf("Command not implemented\n");
+			if (file_handle) {
+				printf("%d\tY\t%s\tOK\n", ncmds, _cmdline);
+				goto acl_loop;
+			} else {
+				/*
+				 * acl failed the first time but we
+				 * still need to consume lines until reaching
+				 * the "." line.
+				 */
+				printf("%d\tN\t%s\tE: "
+				       "Failed to create file\n",
+				       ncmds, _cmdline);
+				get_at_end_of_command(input_stream);
+				goto cmd_loop;
+			}
 		}
+		/* end of ACL command */
+		printf("%d\tN\t%s\tE: You Shouldn't see this\n", ncmds, _cmdline);
+error_free_ops_free_cmd:
+		free(opsline);
+error_free_cmd:
+		printf("%d\tX\t%s\tE: Malformed line\n", ncmds, _cmdline);
 cmd_loop:
 		free(cmdline);
 		free(_cmdline);
+		ncmds++;
+	/* end of while loop */
 	}
 
 out_free_ops_free_cmd:
@@ -393,17 +420,7 @@ out_free_cmd:
 	free(_cmdline);
 out:
 	return ncmds > 1 ? OK : NOT_OK;
-
-error_free_ops_free_cmd:
-	free(opsline);
-error_free_cmd:
-	fprintf(stderr, "E: Malformed operations section\n");
-	fprintf(stderr, "E: Parsing operation section aborted\n");
-	free(cmdline);
-	free(_cmdline);
-	return NOT_OK;
 }
-
 
 
 int main(int argc, char **argv)
@@ -412,7 +429,9 @@ int main(int argc, char **argv)
 	struct file *FS;
 
 	FS = f_ops_mount(&FS);
-
+	printf("File system with read-only root \"/home\" folder\n");
+	printf("User must first create his or her home folder\n");
+	printf("eg.:vatlidak.phd /home/vatlidak\n");
 	rval = parse_user_definition_portion(&FS, stdin);
 	if (rval)
 		goto abort;

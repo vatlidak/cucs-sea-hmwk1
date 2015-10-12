@@ -88,7 +88,7 @@ static inline struct acl *copy_acls(struct acl **dst, struct acl *src)
 			goto error;
 		}
 		temp->user = calloc(strlen(src->user) + 1, sizeof(char));
-	 	temp->group = calloc(strlen(src->group) + 1, sizeof(char));
+		temp->group = calloc(strlen(src->group) + 1, sizeof(char));
 		if (!temp->user || !temp->group) {
 			perror("calloc");
 			goto error;
@@ -96,7 +96,7 @@ static inline struct acl *copy_acls(struct acl **dst, struct acl *src)
 		strcpy(temp->user, src->user);
 		strcpy(temp->group, src->group);
 		temp->permissions = src->permissions;
-	 	temp->next = NULL;
+		temp->next = NULL;
 		/* Append ACL from src (parent) to dst (child) */
 		while (*dst)
 			dst = &(*dst)->next;
@@ -118,26 +118,10 @@ static int do_f_ops_acl_check(struct file **fs, char *filename,
 			      struct acl *pacl)
 {
 	char *parent, *dup;
-	char homefolder[FILENAME_LEN];
 	struct file *file_handle;
 	struct acl *ptemp;
 	struct acl acl;
 
-	/*
-	 * Users need to have home folder -- except when trying
-	 * to create it or when user is "*".
-	 */
-	sprintf(homefolder, "/home/%s", pacl->user);
-	if (strcmp(filename, homefolder)
-	    && strcmp(filename, "/home") && strcmp(filename, "/tmp")
-	    && strcmp(pacl->user, "*")) {
-
-		if (!f_ops_get_handle(*fs, homefolder)) {
-			fprintf(stderr, "User: %s has no home folder:<%s>\n",
-				pacl->user, homefolder);
-			goto error;
-		}
-	}
 	file_handle = f_ops_get_handle(*fs, filename);
 	if (!file_handle)
 		goto error;
@@ -415,6 +399,7 @@ static struct file *do_f_ops_delete(struct file **fs, char *filename,
 	struct acl acl, *temp;
 	struct file *file_handle, *prev;
 	char *parent, *dup;
+	char _filename[FILENAME_LEN];
 
 	dup = strdup(filename);
 	parent = dirname(dup);
@@ -434,7 +419,16 @@ static struct file *do_f_ops_delete(struct file **fs, char *filename,
 	}
 	acl.user = pacl->user;
 	acl.group = pacl->group;
+	/*
+	 * if user tries to remove his or her home folder, relax
+	 * restrictions; but only for home folder. For any other creation
+	 * WRITE persmission is required.
+	 */
 	acl.permissions = WRITE;
+	memset(_filename, 0, FILENAME_LEN);
+	sprintf(_filename, "/home/%s", acl.user);
+	if (!strncmp(_filename, filename, strlen(filename)))
+		acl.permissions = READ;
 	rval = f_ops_acl_check(fs, parent, &acl);
 	if (rval) {
 		fprintf(stderr,
@@ -493,51 +487,22 @@ error:
 /*
  * This method updates (sets) the ACLs of an existing file.
  *
- * Before setting the ACLs WRITE permission is asserted.
+ * Note that this method doesn't check for WRITE permissions
+ * since in the parsing loop and update will always be following
+ * a create (which asserts write permissions).
  */
 static struct file *do_f_ops_update(struct file **fs, char *filename,
 				    struct acl *pacl)
 {
-	int rval;
-	struct acl acl;
-	char *parent, *dup;
 	struct file *file_handle;
-
-	/*
-	 * Only when appending ACLs (not when creting the
-	 * first user) the user can be "*", since the file
-	 * already belongs to some user.
-	 */
-	if (!strcmp(pacl->user, "*"))
-		goto out;
-
-	dup = strdup(filename);
-	parent = dirname(dup);
-	if (*parent == '.') {
-		fprintf(stderr, "Can't parse parent of: \"%s\"\n", filename);
-		goto error;
-	}
 
 	file_handle = f_ops_get_handle(*fs, filename);
 	if (!file_handle) {
 		fprintf(stderr, "File: \"%s\" does not exist\n", filename);
 		goto error;
 	}
-	acl.user = pacl->user;
-	acl.group = pacl->group;
-	acl.permissions = WRITE;
-	rval = f_ops_acl_check(fs, parent, &acl);
-	if (rval) {
-		fprintf(stderr,
-			"Parent of: \"%s\" isn't writable from user: \"%s\"\n",
-			filename, acl.user);
-		goto error;
-	}
-	free(dup);
-out:
 	return do_f_ops_acl_set(fs, filename, pacl);
 error:
-	free(parent);
 	return NULL;
 }
 
@@ -604,4 +569,19 @@ int f_ops_acl_check(struct file **fs, char *filename, struct acl *pacl)
 	      pacl->group, pacl->permissions);
 
 	return do_f_ops_acl_check(fs, filename, pacl);
+}
+
+
+int f_ops_invalid_home_folder(struct file **fs, char *username)
+{
+	char _filename[FILENAME_LEN];
+
+	DEBUG("checking homw folder of user:%s\n", username);
+
+	memset(_filename, 0, FILENAME_LEN);
+	sprintf(_filename, "/home/%s", username);
+	if (f_ops_get_handle(*fs, _filename))
+		return OK;
+
+	return NOT_OK;
 }
