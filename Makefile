@@ -6,22 +6,26 @@ CFLAGS += -D_DEBUG
 endif
 
 OBJECTS := main.o parser.o f_ops.o
-EXECUTABLE := main
+EXECUTABLE := ./main
+TESTS := ./tests/*
 
-all: $(OBJECTS)
+build: $(OBJECTS)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $(EXECUTABLE) $(OBJECTS)
 
 %.o: src/%.c
 	@$(CC) $(CFLAGS) -c $^
 
+test: clean build
+	cat $(TESTS) | $(EXECUTABLE) 2>/dev/null
+
+exec: clean build
+	$(EXECUTABLE) 2>/dev/null
+
+valgrid: clean build
+	/usr/bin/valgrind -v --input-fd=3 < $(TESTS) $(EXECUTABLE)
+
 checkpatch:
 	scripts/checkpatch.pl --no-tree -f src/*
-
-valgrid: clean all
-	/usr/bin/valgrind -v --input-fd=3 < ./tests/test.txt ./$(EXECUTABLE)
-
-demo: clean all
-	cat ./tests/test.txt | ./main 2>/dev/null
 
 clean:
 	rm -f $(EXECUTABLE)

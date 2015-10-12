@@ -38,9 +38,11 @@ stderr to /dev/null/
 * ACL checks: What superceeds what? Append no permission ACL; where does rw go?
 * Format of Errors when OK of the same line appears
 
-## Test
+## Run
+* make build
+* make test (small demo using tests/test.txt)
+* cat custom_test_file | make exec (test using custom file)
 * make valgrid (memory leak checks)
-* make demo (small demo using tests/test.txt)
 
 ## Debug
 * make DEBUG=1
