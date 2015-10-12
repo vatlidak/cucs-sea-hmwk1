@@ -37,15 +37,14 @@ static inline void ls(struct file *fs)
 #endif
 
 
-static inline int is_invalid_line(const char *line)
+static inline int is_invalid_line(const char *line, int max_spaces)
 {
 	int i, spaces = 0;
 
 	for (i = 0; i < ((int)strlen(line)) - 1; i++)
 		if (line[i] == ' ')
 			spaces++;
-
-	return spaces > 1 ? NOT_OK : OK;
+	return spaces > max_spaces ? NOT_OK : OK;
 }
 
 
@@ -78,6 +77,7 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 	char *line, *_line, *user,  *group, *filename;
 
 	nlines = 0;
+	file_handle = NULL;
 	while (1) {
 		/* when line is NULL: getline allocates appropriate buffer */
 		line = NULL;
@@ -97,7 +97,7 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 
 		if (len == 2 && strncmp(line, ".\n", 2) == 0)
 			goto out_free_line;
-		if (is_invalid_line(line))
+		if (is_invalid_line(_line, 1))
 			goto error_free_line;
 		len = get_user(line, &user, ".\n");
 		if (len < 0)
@@ -126,8 +126,6 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 		 * proper user, group, and filename (components missing)
 		 */
 		if (len > 0) {
-
-			/* TODO: check here for bug */
 			file_handle = f_ops_create(fs, filename, &acl_rw);
 			if (file_handle) {
 				f_ops_update(fs, filename, &acl_r);
@@ -152,6 +150,9 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 				       "Failed to update ACLs of: \"%s\"\n",
 				       nlines, file_handle->filename);
 		}
+		goto cmd_loop;
+error_free_line:
+		printf("%d\tX\tE: Malformed line %s\n", nlines, _line);
 cmd_loop:
 		free(line);
 		free(_line);
@@ -161,16 +162,7 @@ out_free_line:
 	free(line);
 	free(_line);
 out:
-	return OK;
-
-error_free_line:
-	fprintf(stderr, "E: Malformed line: %s", line);
-	fprintf(stderr, "E: Malformed user definition section\n");
-	fprintf(stderr, "E: Parsing user definition section aborted\n");
-	free(line);
-	free(_line);
-	return NOT_OK;
-
+	return nlines > 1 ? OK : NOT_OK;
 }
 
 
@@ -200,6 +192,8 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 			goto out_free_cmd;
 		}
 		_cmdline[strlen(cmdline)-1] = '\0';
+		if (is_invalid_line(_cmdline, 2))
+			goto error_free_cmd;
 		len = get_cmd(cmdline, &cmd, "\n ");
 		if (len < 0)
 			goto error_free_cmd;
