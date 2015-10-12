@@ -1,0 +1,45 @@
+vatlidak.vatlidak /home/vatlidak
+vatlidak.*
+kostas.phd /home/kostas
+roxanaphd /home/roxana
+vatlidak.*
+roxana.ds
+*.faculty
+kostas.ds
+vatlidak.phd  /home/vatlidak/temp
+smb.faculty /home/smb/temp
+smb.faculty /home/smb
+vatlida.phd /home/vatlida
+vatlid.phd
+.
+CREATE smb.faculty /home/smb/temp
+smb.faculty rw
+.
+CREATE smb.faculty /home/smb/temp_
+smb.faculty rw
+roxana.faculty r
+roxana.faculty rw
+vatlidak.faculty -
+.
+CREATE smb.faculty /home/smb/temp_i/a
+.
+CREATE smb.faculty /home/smb/temp_/a
+.
+CREATE smb_nop.faculty /home/smb/temp_/a
+.
+READ smb.faculty /home/smb/temp_/a
+WRITE smb.faculty /home/smb/temp_/a
+ACL smb.faculty /home/smb/temp_/ta
+smb.faculty rw
+.
+READ smb.faculty /home/smb/temp_/a
+WRITE smb.faculty /home/smb/temp_/a
+DELETE smb.faculty /home/smb/temp_/a
+READ smb.faculty /home/smb/temp_/a
+CREATE smb_nopfaculty /home/smb/temp_/a
+smb.faculty rw
+smb.* rw
+.
+READ smb.faculty  /home/smb/temp_/a
+ACL vatlidak.vatlidak /home
+vatlidak.vatlidak rw
