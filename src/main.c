@@ -66,7 +66,8 @@ static inline void get_at_end_of_command(FILE *input_stream)
 
 
 /*
- * parse_user_definition: parses the user definition portion of the  file
+ * parse_user_definition: parses the user definition portion of the file and
+ *			  implements the environment setting loop.
  */
 static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 {
@@ -167,7 +168,8 @@ out:
 
 
 /*
- * parse_file_operation: parses the file operation portion of the  file
+ * parse_file_operation: parses the file operation portion and implements
+ *			 implements the COMMANDs loop.
  */
 static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 {
@@ -402,7 +404,6 @@ acl_loop:
 			}
 		}
 		/* end of ACL command */
-		printf("%d\tN\t%s\tE: You Shouldn't see this\n", ncmds, _cmdline);
 error_free_ops_free_cmd:
 		free(opsline);
 error_free_cmd:
@@ -423,7 +424,9 @@ out:
 	return ncmds > 1 ? OK : NOT_OK;
 }
 
-
+/*
+ * main: main entry point
+ */
 int main(int argc, char **argv)
 {
 	int rval;
