@@ -6,17 +6,12 @@ COMS W4187 Fall 2015, Columbia University
 
 ## Project structure
 
-Makefile:
-
-include/parser.h:
-
-include/f_ops.h:
-
-src/parser.c:
-
-src/f_ops.c:
-
-src/main.c:
+* Makefile:
+* include/parser.h:
+* include/f_ops.h:
+* src/parser.c:
+* src/f_ops.c:
+* src/main.c:
 
 scripts/checkpatch.pl: Format checking script
 
@@ -56,11 +51,10 @@ that is, it does not append new ACLs. (This convention simplifies things and
 helos avoid confusion.)
 
 ## TODO
--ACL checks: Order & what superceeds what?
--Append the no permission ACL
--SPECs: parsing of line ok when all components found
--SPECs: parsing of line ok when all components found
--Format of Errors when OK of the same line appears
+* ACL checks: Order & what superceeds what?
+* Append the no permission ACL
+* SPECs: parsing of line ok when all components found
+* Format of Errors when OK of the same line appears
 
 ## Tests
 valgrind

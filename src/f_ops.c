@@ -576,7 +576,10 @@ int f_ops_invalid_home_folder(struct file **fs, char *username)
 {
 	char _filename[FILENAME_LEN];
 
-	DEBUG("checking homw folder of user:%s\n", username);
+	DEBUG("checking home folder of user:%s\n", username);
+
+	if (!strcmp(username, "*"))
+		return OK;
 
 	memset(_filename, 0, FILENAME_LEN);
 	sprintf(_filename, "/home/%s", username);

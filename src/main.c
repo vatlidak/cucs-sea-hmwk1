@@ -138,7 +138,13 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 				       nlines, filename);
 			}
 		} else if (!len && file_handle) {
-
+			if (f_ops_invalid_home_folder(fs, user)) {
+				printf("%d\tX\tE: "
+				       "Failed to update ACLs -- "
+				       "no home folder for user \"%s\"\n",
+				       nlines, user);
+				goto cmd_loop;
+			}
 			if (f_ops_update(fs, file_handle->filename, &acl_rw))
 				printf("%d\tY\tOK\n", nlines);
 			else
@@ -146,6 +152,7 @@ static int parse_user_definition_portion(struct file **fs, FILE *input_stream)
 				       "Failed to update ACLs of: \"%s\"\n",
 				       nlines, file_handle->filename);
 		}
+cmd_loop:
 		free(line);
 		free(_line);
 	}
