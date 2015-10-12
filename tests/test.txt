@@ -12,6 +12,7 @@ smb.faculty /home/smb
 vatlida.phd /home/vatlida
 vatlid.phd
 .
+READ smb.faculty /home/smb/temp_/a
 CREATE smb.faculty /home/smb/temp
 smb.faculty rw
 .
@@ -36,10 +37,15 @@ READ smb.faculty /home/smb/temp_/a
 WRITE smb.faculty /home/smb/temp_/a
 DELETE smb.faculty /home/smb/temp_/a
 READ smb.faculty /home/smb/temp_/a
-CREATE smb_nopfaculty /home/smb/temp_/a
+WRITE smb.nopfaculty /home/smb/
+CREATE smb.nopfaculty /home/smb/lalalala
 smb.faculty rw
-smb.* rw
+smb.faculty r
+smb* rw
+smb* rw
+smb* rw
+smb.faculty rw
 .
-READ smb.faculty  /home/smb/temp_/a
-ACL vatlidak.vatlidak /home
-vatlidak.vatlidak rw
+READ smb.faculty /home/smb/temp_/b_________
+READ smbfaculty /home/smb/temp_/a
+READ smb.faculty /home/smb/temp_/a

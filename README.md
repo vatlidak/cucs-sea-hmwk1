@@ -33,16 +33,14 @@ that is, it does not append new ACLs. (This convention simplifies things and
 helps avoid confusion.)
 
 ## Error
-* Verbose error messages are printed in stderr. To filter them
-out just redirect stderr (fd:2) to /dev/null
-* Errors for the user definition portion are printed per line. For example,
-if a user successfully creates a file in one line but appends an invalid ACL
-in another line, only for the latter an error message will be produced.
-* Errors for the operations portion...
-
-
-To get rid of additional error messages (which are generaly useful) redirect
-stderr to /dev/null/
+* Verbose error messages are printed in stderr. To filter them out just redirect
+stderr (fd:2) to /dev/null
+* Errors for user.group command are printed along with the corresponding line number
+for both the user definition and the operations portion.
+* Errors for command are printed along with the corresponding command number.
+* Note that if an error occurs in "user.group" portion of a ACL or CREATE
+  comand, the lines following the error are dropped -- but the ones preceeding
+  the error are resulting to valid ACLs.
 
 ## TODO
 * ACL checks: What superceeds what? Append no permission ACL; where does rw go?
