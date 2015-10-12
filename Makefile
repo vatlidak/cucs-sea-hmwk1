@@ -17,8 +17,11 @@ all: $(OBJECTS)
 checkpatch:
 	scripts/checkpatch.pl --no-tree -f src/*
 
-valgrid:
+valgrid: clean all
 	/usr/bin/valgrind -v --input-fd=3 < ./tests/test.txt ./$(EXECUTABLE)
+
+demo: clean all
+	cat ./tests/test.txt | ./main 2>/dev/null
 
 clean:
 	rm -f $(EXECUTABLE)
