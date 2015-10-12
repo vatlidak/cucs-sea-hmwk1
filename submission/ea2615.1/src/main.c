@@ -226,7 +226,7 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 			rval = f_ops_acl_check(fs, filename, &acl_r);
 			if (rval) {
 				printf("%d\tN\t%s\tE: ", error_line, _cmdline);
-				printf("Failed to read file\n");
+				printf("Cannot to read file\n");
 			} else {
 				printf("%d\tY\t%s\tOK\n", error_line, _cmdline);
 			}
@@ -238,7 +238,7 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 			acl_w.permissions = WRITE;
 			if (f_ops_acl_check(fs, filename, &acl_w)) {
 				printf("%d\tN\t%s\tE: ", error_line, _cmdline);
-				printf("Failed to write file\n");
+				printf("Cannot write file\n");
 			} else {
 				printf("%d\tY\t%s\tOK\n", error_line, _cmdline);
 			}
@@ -250,7 +250,7 @@ static int parse_file_operation_portion(struct file **fs, FILE *input_stream)
 			acl_w.permissions = WRITE;
 			if (f_ops_acl_check(fs, filename, &acl_w)) {
 				printf("%d\tN\t%s\tE: ", error_line, _cmdline);
-				printf("Failed to delete file\n");
+				printf("Cannot delete file\n");
 			} else {
 				f_ops_delete(fs, filename, &acl_w);
 				printf("%d\tY\t%s\tOK\n", error_line, _cmdline);
@@ -460,7 +460,7 @@ out_free_cmd:
 	free(cmdline);
 	free(_cmdline);
 out:
-	return ncmds > 1 ? OK : NOT_OK;
+	return ncmds > 0 ? OK : NOT_OK;
 }
 
 /*

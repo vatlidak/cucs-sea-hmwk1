@@ -112,7 +112,10 @@ error:
 /*
  * Main method doing the ACL checks
  *
- * Needs work
+ * This method does all the dirty job of iteratively trying to match
+ * the user, group, permissions pointed by pacl lwith the ACLs of the
+ * file "filename". Basically, checks all the ACLs of the file, and if
+ * a matching rule is found returns the rresult.
  */
 static int do_f_ops_acl_check(struct file **fs, char *filename,
 			      struct acl *pacl)
@@ -153,14 +156,40 @@ no_predecessors_end_recursion:
 
 	/* All right -- the actual ACLs check is performed here */
 	while (ptemp != NULL) {
-		if (!strcmp(ptemp->user, pacl->user) ||
-		    !strcmp(ptemp->group, pacl->group) ||
-		    !strcmp(ptemp->user, "*") ||
-		    !strcmp(ptemp->group, "*")) {
-			if ((ptemp->permissions & pacl->permissions) == 0)
-				goto error;
-			else
+
+		/* if user & group match */
+		if (!strcmp(ptemp->user, pacl->user)
+		    && !strcmp(ptemp->group, pacl->group)) {
+			if ((ptemp->permissions & pacl->permissions))
 				return OK;
+			if (ptemp->permissions == NO_PERMISSION)
+				return NOT_OK;
+		}
+
+		/* if user is any user and group matches */
+		if (!strcmp(ptemp->user, "*")
+		    && !strcmp(ptemp->group, pacl->group)) {
+			if ((ptemp->permissions & pacl->permissions))
+				return OK;
+			if (ptemp->permissions == NO_PERMISSION)
+				return NOT_OK;
+		}
+
+		/* if group is any group & user matches */
+		if (!strcmp(ptemp->group, "*")
+		   && !strcmp(ptemp->user, pacl->user)) {
+			if ((ptemp->permissions & pacl->permissions))
+				return OK;
+			if (ptemp->permissions == NO_PERMISSION)
+				return NOT_OK;
+		}
+
+		/* if group is any group & user is any user */
+		if (!strcmp(ptemp->group, "*") && !strcmp(ptemp->user, "*")) {
+			if ((ptemp->permissions & pacl->permissions))
+				return OK;
+			if (ptemp->permissions == NO_PERMISSION)
+				return NOT_OK;
 		}
 		ptemp = ptemp->next;
 	}

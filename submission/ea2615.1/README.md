@@ -16,9 +16,9 @@ COMS W4187 Fall 2015, Columbia University
 * tests/test.txt: A demo test file
 
 ## Notes - Conventions
-Any user appearing either in the user definition portion should have a
-dedicated home folder except for one case: when the user tries to create his or
-her home folder for the first time.
+Any user appearing in the user definition portion should have a dedicated home
+folder except for one case: when the user tries to create his or her home folder
+for the first time.
 
 In the operations portion the commands "[CREATE|ACL] user.group filename"
 do not append an ACL "user.group rw" unlike what happens in the user
@@ -31,6 +31,10 @@ line.
 An "ACL user.group filename" command overwrites any existing ACLs of filename --
 that is, it does not append new ACLs. (This convention simplifies things and
 helps avoid confusion.)
+
+In the operations portion any ACL is followed by an implicit "*.* -"  rule
+since the acl_check function returns no permissions, if no matching rule is
+found.
 
 ## Error
 * Verbose error messages are printed in stderr. To filter them out just redirect
