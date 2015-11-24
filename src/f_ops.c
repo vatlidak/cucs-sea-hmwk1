@@ -165,14 +165,16 @@ no_predecessors_end_recursion:
 			if (ptemp->permissions == NO_PERMISSION)
 				return NOT_OK;
 		}
+		ptemp = ptemp->next;
+	}
+	ptemp = file_handle->acls;
+	while (ptemp != NULL) {
 
 		/* if user is any user and group matches */
 		if (!strcmp(ptemp->user, "*")
 		    && !strcmp(ptemp->group, pacl->group)) {
 			if ((ptemp->permissions & pacl->permissions))
 				return OK;
-			if (ptemp->permissions == NO_PERMISSION)
-				return NOT_OK;
 		}
 
 		/* if group is any group & user matches */
@@ -180,10 +182,11 @@ no_predecessors_end_recursion:
 		   && !strcmp(ptemp->user, pacl->user)) {
 			if ((ptemp->permissions & pacl->permissions))
 				return OK;
-			if (ptemp->permissions == NO_PERMISSION)
-				return NOT_OK;
 		}
-
+		ptemp = ptemp->next;
+	}
+	ptemp = file_handle->acls;
+	while (ptemp != NULL) {
 		/* if group is any group & user is any user */
 		if (!strcmp(ptemp->group, "*") && !strcmp(ptemp->user, "*")) {
 			if ((ptemp->permissions & pacl->permissions))
@@ -193,6 +196,7 @@ no_predecessors_end_recursion:
 		}
 		ptemp = ptemp->next;
 	}
+
 error:
 	return NOT_OK;
 }
