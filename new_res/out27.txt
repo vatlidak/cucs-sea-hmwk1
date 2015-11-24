@@ -1,0 +1,10 @@
+File system with read-only root "/home" folder
+User must first create his or her home folder
+eg.:vatlidak.phd /home/vatlidak
+1	Y	OK
+2	Y	OK
+3	X	E: Failed to create: "/home/sal./."
+4	Y	OK
+5	Y	OK
+1	Y	READ smb.columbia /home	OK
+2	Y	CREATE smb.faculty /home/smb/foo	OK
